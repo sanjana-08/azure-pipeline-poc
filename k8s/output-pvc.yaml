@@ -1,0 +1,12 @@
+# k8s/output-pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: output-pvc
+spec:
+  accessModes: ["ReadWriteMany"]
+  storageClassName: output-pvc
+  volumeName: output-pv
+  resources:
+    requests:
+      storage: 100Gi

@@ -1,0 +1,90 @@
+# # k8s/dasymetric-job.yaml
+# apiVersion: batch/v1
+# kind: Job
+# metadata:
+#   name: dasymetric-run
+# spec:
+#   template:
+#     spec:
+#       restartPolicy: Never
+#       volumes:
+#         - name: data
+#           hostPath:
+#             path: /data    # see step 4
+#             type: Directory
+#         - name: output
+#           hostPath:
+#             path: /output # see step 4
+#             type: Directory
+#       containers:
+#       - name: dasymetric
+#         image: dasymetric:latest
+#         imagePullPolicy: Never
+#         command: ["python", "dasymetric_dask.py"]
+#         env:
+#           - name: DASK_SCHEDULER
+#             value: tcp://dask-scheduler:8786
+#           - name: CENSUS_FILE
+#             value: /data/galveston_blocks_Projection.shp
+#           - name: LULC_FILE
+#             value: /data/Annual_NLCD_LndCov_2023_C.tif
+#           - name: OUTPUT_DIR
+#             value: /output
+#           - name: TILE_SIZE
+#             value: "1000"
+#           - name: POP_FIELD
+#             value: POP20
+#           - name: BATCH_SIZE
+#             value: "100"
+#           - name: PYTHONUNBUFFERED
+#             value: "1"
+#         volumeMounts:
+#           - name: data
+#             mountPath: /data
+#           - name: output
+#             mountPath: /output
+
+
+
+# k8s/dasymetric-job-aks.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: dasymetric-run
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      imagePullSecrets:
+        - name: acr-auth
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: data-pvc
+        - name: output
+          persistentVolumeClaim:
+            claimName: output-pvc
+      containers:
+        - name: dasymetric
+          image: popaloc.azurecr.io/samples/dasymetric:latest
+          command: ["python", "dasymetric_dask.py"]
+          env:
+            - name: DASK_SCHEDULER
+              value: tcp://dask-scheduler:8786
+            - name: CENSUS_FILE
+              value: /data/galveston_blocks_Projection.shp
+            - name: LULC_FILE
+              value: /data/Annual_NLCD_LndCov_2023_C.tif
+            - name: OUTPUT_DIR
+              value: /output
+            - name: TILE_SIZE
+              value: "1000"
+            - name: POP_FIELD
+              value: POP20
+            - name: BATCH_SIZE
+              value: "100"
+          volumeMounts:
+           - name: data
+             mountPath: /data
+           - name: output
+             mountPath: /output

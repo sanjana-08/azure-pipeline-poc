@@ -1,0 +1,12 @@
+# k8s/data-pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data-pvc
+spec:
+  accessModes: ["ReadOnlyMany"]
+  storageClassName: data-pvc 
+  volumeName: data-pv  # AKS has the CSI azurefile driver enabled by default
+  resources:
+    requests:
+      storage: 100Gi

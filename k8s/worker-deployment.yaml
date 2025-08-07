@@ -1,0 +1,87 @@
+# # k8s/worker-deployment.yaml
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: dask-worker
+# spec:
+#   replicas: 2
+#   selector:
+#     matchLabels:
+#       app: dask-worker
+#   template:
+#     metadata:
+#       labels:
+#         app: dask-worker
+#     spec:
+#       volumes:
+#         - name: data
+#           hostPath:
+#             path: /data
+#             type: Directory
+#         - name: output
+#           hostPath:
+#             path: /output
+#             type: Directory
+#       containers:
+#       - name: worker
+#         image: dasymetric:latest
+#         imagePullPolicy: Never
+
+#         command:
+#           - dask
+#           - worker
+#           - tcp://dask-scheduler:8786
+#           - "--nworkers"
+#           - "2"
+#           - "--nthreads"
+#           - "6"
+#           - "--memory-limit"
+#           - "3GB"
+#         env:
+#           - name: DASK_SCHEDULER
+#             value: tcp://dask-scheduler:8786
+#         volumeMounts:
+#           - name: data
+#             mountPath: /data
+#           - name: output
+#             mountPath: /output
+# k8s/worker-deployment-aks.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dask-worker
+spec:
+  replicas: 4
+  selector:
+    matchLabels: { app: dask-worker }
+  template:
+    metadata:
+      labels: { app: dask-worker }
+    spec:
+      imagePullSecrets:
+        - name: acr-auth
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: data-pvc
+        - name: output
+          persistentVolumeClaim:
+            claimName: output-pvc
+      containers:
+      - name: worker
+        image: popaloc.azurecr.io/samples/dasymetric:latest
+        command:
+          - dask
+          - worker
+          - tcp://dask-scheduler:8786
+          - "--nworkers"
+          - "2"
+          - "--nthreads"
+          - "6"
+          - "--memory-limit"
+          - "3GB"
+        volumeMounts:
+          - name: data
+            mountPath: /data
+          - name: output
+            mountPath: /output

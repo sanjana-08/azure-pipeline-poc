@@ -1,0 +1,49 @@
+services:
+  dask-scheduler:
+    build: .
+    command: dask scheduler
+    ports:
+      - "8786:8786"
+      - "8787:8787" # dashboard
+    environment:
+      - DASK_DISTRIBUTED__WORKER__MEMORY__TARGET=0.8
+      - DASK_DISTRIBUTED__WORKER_MEMORY__SPILL=0.9
+    networks:
+      - dasymetric-net
+
+  dask-worker:
+    build: .
+    command: dask worker tcp://dask-scheduler:8786 --nworkers 2 --nthreads 6 --memory-limit 3GB
+    depends_on:
+      - dask-scheduler
+    volumes:
+      - ./data:/data
+      - ./output:/output
+    networks:
+      - dasymetric-net
+    deploy:
+      replicas: 8
+
+  dasymetric:
+    build: .
+    command: python dasymetric_dask.py
+    depends_on:
+      - dask-scheduler
+      - dask-worker
+    environment:
+      - DASK_SCHEDULER=tcp://dask-scheduler:8786
+      - CENSUS_FILE=/data/galveston_blocks_Projection.shp
+      - LULC_FILE=/data/Annual_NLCD_LndCov_2023_C.tif
+      - OUTPUT_DIR=/output
+      - TILE_SIZE=1000
+      - POP_FIELD=POP20
+      - BATCH_SIZE=100  # smaller batches = more parallelism
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./data:/data
+      - ./output:/output
+    networks:
+      - dasymetric-net
+
+networks:
+  dasymetric-net:

@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: data-pv
+spec:
+  capacity:
+    storage: 100Gi
+  accessModes:
+    - ReadOnlyMany
+  storageClassName: data-pvc
+  persistentVolumeReclaimPolicy: Retain
+  csi:
+    driver: file.csi.azure.com
+    readOnly: false
+    volumeHandle: data              # must match your share name
+    volumeAttributes:
+      shareName: data               # your Azure Files share
+      storageAccount: popaloc    
+      
+    nodeStageSecretRef:
+      name: azure-storage-secret      # the secret you just created
+      namespace: default   # your storage account
+

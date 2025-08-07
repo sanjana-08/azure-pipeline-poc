@@ -1,0 +1,15 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    extraMounts:
+      - hostPath: /home/sanjana/daysymmetric_mapping/data
+        containerPath: /data
+      - hostPath: /home/sanjana/daysymmetric_mapping/output
+        containerPath: /output
+  - role: worker
+    extraMounts:
+      - hostPath: /home/sanjana/daysymmetric_mapping/data
+        containerPath: /data
+      - hostPath: /home/sanjana/daysymmetric_mapping/output
+        containerPath: /output
