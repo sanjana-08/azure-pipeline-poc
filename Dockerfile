@@ -20,7 +20,8 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 # Copy script
 COPY dasymetric_dask.py .
-COPY /data .
-COPY /output .
+#COPY /data .
+#COPY /output .
 
 CMD ["python", "dasymetric_dask.py"]
+
