@@ -49,7 +49,6 @@ env:
     ./k8s/data-pv.yaml
     ./k8s/data-pvc.yaml
     ./k8s/data-sc.yaml
-    ./k8s/kind-config.yaml
     ./k8s/output-pv.yaml
     ./k8s/output-pvc.yaml
     ./k8s/output-sc.yaml
