@@ -40,7 +40,7 @@ on:
 env:
   ACR_RESOURCE_GROUP: Kubernetes-test
   AZURE_CONTAINER_REGISTRY: popaloc
-  CONTAINER_NAME: image-workflow-1754923965051
+  CONTAINER_NAME: samples/dasymetric
   CLUSTER_NAME: kuber-popaloc2
   CLUSTER_RESOURCE_GROUP: Kubernetes-test
   CLUSTER_RESOURCE_TYPE: Microsoft.ContainerService/managedClusters
@@ -58,7 +58,7 @@ env:
     ./k8s/worker-deployment.yaml
   DOCKER_FILE: ./Dockerfile
   BUILD_CONTEXT_PATH: ./
-  NAMESPACE: namespace-workflow-1754923965051
+  NAMESPACE: default
   ENABLENAMESPACECREATION: false
   AUTH_TYPE: SERVICE_PRINCIPAL
 
