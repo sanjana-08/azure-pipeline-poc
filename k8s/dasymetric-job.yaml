@@ -47,7 +47,7 @@
 
 
 # k8s/dasymetric-job-aks.yaml
-apiVersion: batch/v1
+apiVersion: apps/v1
 kind: Job
 metadata:
   name: dasymetric-run
@@ -89,5 +89,6 @@ spec:
              mountPath: /data
            - name: output
              mountPath: /output
+
 
 
