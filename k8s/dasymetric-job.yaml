@@ -66,7 +66,7 @@ spec:
           persistentVolumeClaim:
             claimName: output-pvc
       containers:
-        - name: samples/dasymetric
+        - name: dasymetric
           image: popaloc.azurecr.io/samples/dasymetric:latest
           command: ["python", "dasymetric_dask.py"]
           env:
@@ -89,6 +89,7 @@ spec:
              mountPath: /data
            - name: output
              mountPath: /output
+
 
 
 
