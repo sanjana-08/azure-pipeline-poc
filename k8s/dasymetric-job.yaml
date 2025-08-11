@@ -56,8 +56,8 @@ spec:
   template:
     spec:
       restartPolicy: Never
-      imagePullSecrets:
-        - name: acr-auth
+      # imagePullSecrets:
+      #   - name: acr-auth
       volumes:
         - name: data
           persistentVolumeClaim:
@@ -89,6 +89,7 @@ spec:
              mountPath: /data
            - name: output
              mountPath: /output
+
 
 
 
