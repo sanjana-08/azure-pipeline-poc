@@ -52,9 +52,9 @@ kind: Job
 metadata:
   name: dasymetric-run
 spec:
+  ttlSecondsAfterFinished: 60
   template:
     spec:
-      ttlSecondsAfterFinished: 60
       restartPolicy: Never
       imagePullSecrets:
         - name: acr-auth
@@ -89,4 +89,5 @@ spec:
              mountPath: /data
            - name: output
              mountPath: /output
+
 
