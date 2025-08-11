@@ -19,7 +19,8 @@ spec:
       
     nodeStageSecretRef:
       name: azure-storage-secret      # the secret you just created
-      #namespace: default   # your storage account
+      namespace: default   # your storage account
 
 
 # kubectl create secret generic azure-storage-secret   --from-literal=azurestorageaccountname=popaloc   --from-literal=azurestorageaccountkey="$STORAGE_KEY"   --namespace default
+
