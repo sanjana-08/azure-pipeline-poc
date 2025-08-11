@@ -19,6 +19,7 @@ spec:
       
     nodeStageSecretRef:
       name: azure-storage-secret      # the secret you just created
-      #namespace: default   # your storage account
+      namespace: default   # your storage account
+
 
 
