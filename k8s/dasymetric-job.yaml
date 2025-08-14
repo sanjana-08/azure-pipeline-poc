@@ -145,9 +145,9 @@ spec:
             - name: DASK_TEMPORARY_DIRECTORY
               value: /dask-tmp
             - name: DASK_DISTRIBUTED__WORKER__MEMORY__TARGET
-              value: "0.6"
-            - name: DASK_DISTRIBUTED__WORKER__MEMORY__SPILL
               value: "0.7"
+            - name: DASK_DISTRIBUTED__WORKER__MEMORY__SPILL
+              value: "0.9"
             - name: DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE
               value: "0.8"
             - name: DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE
@@ -159,6 +159,7 @@ spec:
               mountPath: /output
             - name: dask-tmp
               mountPath: /dask-tmp
+
 
 
 
