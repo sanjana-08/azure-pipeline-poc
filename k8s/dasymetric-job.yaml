@@ -46,18 +46,62 @@
 
 
 
-# k8s/dasymetric-job-aks.yaml
+# # k8s/dasymetric-job-aks.yaml
+# apiVersion: batch/v1
+# kind: Job
+# metadata:
+#   name: dasymetric-run
+# spec:
+#   ttlSecondsAfterFinished: 60
+#   template:
+#     spec:
+#       restartPolicy: Never
+#       # imagePullSecrets:
+#       #   - name: acr-auth
+#       volumes:
+#         - name: data
+#           persistentVolumeClaim:
+#             claimName: data-pvc
+#         - name: output
+#           persistentVolumeClaim:
+#             claimName: output-pvc
+#       containers:
+#         - name: dasymetric
+#           image: popaloc.azurecr.io/samples/dasymetric:latest
+#           command: ["python", "dasymetric_dask.py"]
+#           env:
+#             - name: DASK_SCHEDULER
+#               value: tcp://dask-scheduler:8786
+#             - name: CENSUS_FILE
+#               value: /data/tl_2024_48_tabblock20.shp
+#               #value: /data/galveston_blocks_Projectio.shp
+#             - name: LULC_FILE
+#               value: /data/NLCD_Texas.tif
+#               #value: /data/Annual_NLCD_LndCov_2023_C.tif
+#             - name: OUTPUT_DIR
+#               value: /output
+#             - name: TILE_SIZE
+#               value: "1000"
+#             - name: POP_FIELD
+#               value: POP20
+#             - name: BATCH_SIZE
+#               value: "100"
+#           volumeMounts:
+#            - name: data
+#              mountPath: /data
+#            - name: output
+#              mountPath: /output
+
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: dasymetric-run
 spec:
+  backoffLimit: 0
   ttlSecondsAfterFinished: 60
   template:
     spec:
       restartPolicy: Never
-      # imagePullSecrets:
-      #   - name: acr-auth
       volumes:
         - name: data
           persistentVolumeClaim:
@@ -65,32 +109,56 @@ spec:
         - name: output
           persistentVolumeClaim:
             claimName: output-pvc
+        - name: dask-tmp
+          emptyDir:
+            sizeLimit: "50Gi"     # spill/scratch; adjust as needed
       containers:
         - name: dasymetric
           image: popaloc.azurecr.io/samples/dasymetric:latest
           command: ["python", "dasymetric_dask.py"]
+          resources:
+            requests:
+              cpu: "2"
+              memory: "8Gi"
+            limits:
+              cpu: "4"
+              memory: "16Gi"      # raise if you still OOM
           env:
             - name: DASK_SCHEDULER
               value: tcp://dask-scheduler:8786
             - name: CENSUS_FILE
               value: /data/tl_2024_48_tabblock20.shp
-              #value: /data/galveston_blocks_Projectio.shp
             - name: LULC_FILE
               value: /data/NLCD_Texas.tif
-              #value: /data/Annual_NLCD_LndCov_2023_C.tif
             - name: OUTPUT_DIR
               value: /output
             - name: TILE_SIZE
-              value: "1000"
+              value: "512"        # ↓ from 1000 to cut memory per task
             - name: POP_FIELD
               value: POP20
             - name: BATCH_SIZE
-              value: "100"
+              value: "20"         # ↓ from 100 to reduce working set
+            # Raster/GDAL cache: keep it modest so it doesn't eat RAM
+            - name: GDAL_CACHEMAX
+              value: "512"        # MB
+            # Dask spill-to-disk thresholds (client may inherit, but workers need their own config—see §3)
+            - name: DASK_TEMPORARY_DIRECTORY
+              value: /dask-tmp
+            - name: DASK_DISTRIBUTED__WORKER__MEMORY__TARGET
+              value: "0.6"
+            - name: DASK_DISTRIBUTED__WORKER__MEMORY__SPILL
+              value: "0.7"
+            - name: DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE
+              value: "0.8"
+            - name: DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE
+              value: "0.95"
           volumeMounts:
-           - name: data
-             mountPath: /data
-           - name: output
-             mountPath: /output
+            - name: data
+              mountPath: /data
+            - name: output
+              mountPath: /output
+            - name: dask-tmp
+              mountPath: /dask-tmp
 
 
 
