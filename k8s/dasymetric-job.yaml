@@ -135,7 +135,7 @@ spec:
             - name: OUTPUT_DIR
               value: /output
             - name: TILE_SIZE
-              value: "2048"        # ↓ from 1000 to cut memory per task
+              value: "512"        # ↓ from 1000 to cut memory per task
             - name: POP_FIELD
               value: POP20
             - name: BATCH_SIZE
@@ -162,6 +162,7 @@ spec:
             - name: dask-tmp
               mountPath: /dask-tmp
           
+
 
 
 
