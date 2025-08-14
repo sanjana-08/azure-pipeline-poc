@@ -79,10 +79,11 @@ spec:
           - "--nthreads"
           - "8"
           - "--memory-limit"
-          - "8GB"
+          - "16GB"
         volumeMounts:
           - name: data
             mountPath: /data
           - name: output
             mountPath: /output
+
 
