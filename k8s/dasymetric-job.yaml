@@ -122,10 +122,10 @@ spec:
           resources:
             requests:
               cpu: "2"
-              memory: "5Gi"
+              memory: "8Gi"
             limits:
               cpu: "4"
-              memory: "6Gi"      # raise if you still OOM
+              memory: "10Gi"      # raise if you still OOM
           env:
             - name: DASK_SCHEDULER
               value: tcp://dask-scheduler:8786
@@ -170,6 +170,7 @@ spec:
             - name: dask-tmp
               mountPath: /dask-tmp
           
+
 
 
 
