@@ -51,7 +51,7 @@ kind: Deployment
 metadata:
   name: dask-worker
 spec:
-  replicas: 25
+  replicas: 6
   selector:
     matchLabels: { app: dask-worker }
   template:
@@ -75,22 +75,23 @@ spec:
           - worker
           - tcp://dask-scheduler:8786
           - "--nworkers"
-          - "4"
+          - "6"
           - "--nthreads"
-          - "8"
-          - "--memory-limit"
-          - "32GB"
+          - "1"
+          # - "--memory-limit"
+          # - "4GB"
         resources:
           requests:
-            memory: "16Gi"
+            memory: "4Gi"
           limits:
-            memory: "32Gi"
+            memory: "6Gi"
 
         volumeMounts:
           - name: data
             mountPath: /data
           - name: output
             mountPath: /output
+
 
 
 
