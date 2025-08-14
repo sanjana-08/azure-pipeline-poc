@@ -104,6 +104,7 @@ spec:
       restartPolicy: Never
       nodeSelector:
             agentpool: test
+      terminationGracePeriodSeconds: 60
       volumes:
         - name: data
           persistentVolumeClaim:
@@ -156,6 +157,11 @@ spec:
               value: "0.8"
             - name: DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE
               value: "0.95"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: PYTHONFAULTHANDLER
+              value: "1"
+          terminationMessagePolicy: FallbackToLogsOnError
           volumeMounts:
             - name: data
               mountPath: /data
@@ -164,6 +170,7 @@ spec:
             - name: dask-tmp
               mountPath: /dask-tmp
           
+
 
 
 
