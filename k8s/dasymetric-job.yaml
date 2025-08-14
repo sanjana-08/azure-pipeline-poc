@@ -111,18 +111,18 @@ spec:
             claimName: output-pvc
         - name: dask-tmp
           emptyDir:
-            sizeLimit: "50Gi"     # spill/scratch; adjust as needed
+            sizeLimit: "100Gi"     # spill/scratch; adjust as needed
       containers:
         - name: dasymetric
           image: popaloc.azurecr.io/samples/dasymetric:latest
           command: ["python", "dasymetric_dask.py"]
           resources:
             requests:
-              cpu: "2"
-              memory: "8Gi"
-            limits:
               cpu: "4"
-              memory: "16Gi"      # raise if you still OOM
+              memory: "16Gi"
+            limits:
+              cpu: "8"
+              memory: "32Gi"      # raise if you still OOM
           env:
             - name: DASK_SCHEDULER
               value: tcp://dask-scheduler:8786
@@ -159,6 +159,7 @@ spec:
               mountPath: /output
             - name: dask-tmp
               mountPath: /dask-tmp
+
 
 
 
