@@ -54,15 +54,16 @@ spec:
         resources:
           requests:
             cpu: "0.5"
-            memory: "4Gi"
+            memory: "8Gi"
           limits:
             cpu: "1"
-            memory: "5Gi"
+            memory: "10Gi"
         ports:
           - containerPort: 8786
 
           - containerPort: 8787
        
+
 
 
 
