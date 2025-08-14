@@ -118,11 +118,11 @@ spec:
           command: ["python", "dasymetric_dask.py"]
           resources:
             requests:
-              cpu: "4"
-              memory: "16Gi"
+              cpu: "1"
+              memory: "2Gi"
             limits:
-              cpu: "8"
-              memory: "32Gi"      # raise if you still OOM
+              cpu: "2"
+              memory: "3Gi"      # raise if you still OOM
           env:
             - name: DASK_SCHEDULER
               value: tcp://dask-scheduler:8786
@@ -133,7 +133,7 @@ spec:
             - name: OUTPUT_DIR
               value: /output
             - name: TILE_SIZE
-              value: "512"        # ↓ from 1000 to cut memory per task
+              value: "2048"        # ↓ from 1000 to cut memory per task
             - name: POP_FIELD
               value: POP20
             - name: BATCH_SIZE
@@ -159,6 +159,7 @@ spec:
               mountPath: /output
             - name: dask-tmp
               mountPath: /dask-tmp
+
 
 
 
