@@ -49,6 +49,14 @@ spec:
       - name: scheduler
         image: popaloc.azurecr.io/samples/dasymetric:latest
         command: ["dask", "scheduler"]
+        resources:
+          requests:
+            cpu: "0.5"
+            memory: "1Gi"
+          limits:
+            cpu: "1"
+            memory: "2Gi"
         ports:
           - containerPort: 8786
+
           - containerPort: 8787
