@@ -130,7 +130,7 @@ spec:
             - name: DASK_SCHEDULER
               value: tcp://dask-scheduler:8786
             - name: CENSUS_FILE
-              value: /data/galveston_blocks_Projectio.shp
+              value: /data/galveston_blocks_Projection.shp
               #value: /data/tl_2024_48_tabblock20.shp
             - name: LULC_FILE
               #value: /data/NLCD_Texas.tif
@@ -170,6 +170,7 @@ spec:
             - name: dask-tmp
               mountPath: /dask-tmp
           
+
 
 
 
