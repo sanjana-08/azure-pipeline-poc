@@ -73,9 +73,9 @@ spec:
             - name: DASK_SCHEDULER
               value: tcp://dask-scheduler:8786
             - name: CENSUS_FILE
-              value: /data/galveston_blocks_Projection.shp
+              value: /data/tl_2024_48_tabblock20.shp
             - name: LULC_FILE
-              value: /data/Annual_NLCD_LndCov_2023_C.tif
+              value: /data/NLCD_Texas.tif
             - name: OUTPUT_DIR
               value: /output
             - name: TILE_SIZE
@@ -89,6 +89,7 @@ spec:
              mountPath: /data
            - name: output
              mountPath: /output
+
 
 
 
