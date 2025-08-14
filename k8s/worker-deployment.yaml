@@ -91,6 +91,10 @@ spec:
             mountPath: /data
           - name: output
             mountPath: /output
+        nodeSelector:
+          agentpool: test 
+      
+
 
 
 
