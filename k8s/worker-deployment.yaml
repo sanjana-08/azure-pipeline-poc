@@ -76,19 +76,13 @@ spec:
           - dask
           - worker
           - tcp://dask-scheduler:8786
-          # - "--nworkers"
-          # - "6"
-          - "--nthreads"
-          - "1"
-          # - "--memory-limit"
-          # - "4GB"
         resources:
           requests:
             cpu: "2"
-            memory: "2Gi"
+            memory: "4Gi"
           limits:
             cpu: "3"
-            memory: "3Gi"
+            memory: "6Gi"
 
         volumeMounts:
           - name: data
@@ -97,6 +91,7 @@ spec:
             mountPath: /output
       
       
+
 
 
 
