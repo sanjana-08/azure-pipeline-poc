@@ -58,6 +58,8 @@ spec:
     metadata:
       labels: { app: dask-worker }
     spec:
+      nodeSelector:
+          agentpool: test 
       imagePullSecrets:
         - name: acr-auth
       volumes:
@@ -91,9 +93,9 @@ spec:
             mountPath: /data
           - name: output
             mountPath: /output
-        nodeSelector:
-          agentpool: test 
       
+      
+
 
 
 
