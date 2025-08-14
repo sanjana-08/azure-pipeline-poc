@@ -79,11 +79,18 @@ spec:
           - "--nthreads"
           - "8"
           - "--memory-limit"
-          - "16GB"
+          - "32GB"
+        resources:
+          requests:
+            memory: "16Gi"
+          limits:
+            memory: "32Gi"
+
         volumeMounts:
           - name: data
             mountPath: /data
           - name: output
             mountPath: /output
+
 
 
