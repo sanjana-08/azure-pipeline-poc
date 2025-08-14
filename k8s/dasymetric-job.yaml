@@ -102,6 +102,8 @@ spec:
   template:
     spec:
       restartPolicy: Never
+      nodeSelector:
+            agentpool: test
       volumes:
         - name: data
           persistentVolumeClaim:
@@ -159,8 +161,8 @@ spec:
               mountPath: /output
             - name: dask-tmp
               mountPath: /dask-tmp
-          nodeSelector:
-            agentpool: test 
+          
+
 
 
 
