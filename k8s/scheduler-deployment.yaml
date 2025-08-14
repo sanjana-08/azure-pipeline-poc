@@ -60,3 +60,6 @@ spec:
           - containerPort: 8786
 
           - containerPort: 8787
+        nodeSelector:
+          agentpool: test 
+
