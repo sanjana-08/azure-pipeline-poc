@@ -53,15 +53,16 @@ spec:
         command: ["dask", "scheduler"]
         resources:
           requests:
-            cpu: "0.5"
-            memory: "1Gi"
-          limits:
             cpu: "1"
             memory: "2Gi"
+          limits:
+            cpu: "2"
+            memory: "3Gi"
         ports:
           - containerPort: 8786
 
           - containerPort: 8787
        
+
 
 
