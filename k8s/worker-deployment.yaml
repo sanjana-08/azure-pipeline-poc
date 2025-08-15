@@ -78,11 +78,11 @@ spec:
           - tcp://dask-scheduler:8786
         resources:
           requests:
-            cpu: "2"
-            memory: "4Gi"
+            cpu: "4"
+            memory: "8Gi"
           limits:
-            cpu: "3"
-            memory: "6Gi"
+            cpu: "5"
+            memory: "10Gi"
 
         volumeMounts:
           - name: data
@@ -91,6 +91,7 @@ spec:
             mountPath: /output
       
       
+
 
 
 
