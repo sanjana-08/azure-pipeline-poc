@@ -43,8 +43,8 @@ spec:
     metadata:
       labels: { app: dask-scheduler }
     spec:
-      nodeSelector:
-          agentpool: test
+      # nodeSelector:
+      #     agentpool: test
       imagePullSecrets:
         - name: acr-auth  # create this via `az acr update —attach-acr` or pull secret
       containers:
@@ -63,6 +63,7 @@ spec:
 
           - containerPort: 8787
        
+
 
 
 
