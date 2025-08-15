@@ -102,8 +102,8 @@ spec:
   template:
     spec:
       restartPolicy: Never
-      nodeSelector:
-            kubernetes.azure.com/agentpool: test
+      # nodeSelector:
+      #       kubernetes.azure.com/agentpool: test
       terminationGracePeriodSeconds: 60
       volumes:
         - name: data
@@ -170,6 +170,7 @@ spec:
             - name: dask-tmp
               mountPath: /dask-tmp
           
+
 
 
 
