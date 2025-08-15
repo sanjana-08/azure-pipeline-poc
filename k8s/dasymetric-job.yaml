@@ -121,10 +121,10 @@ spec:
           command: ["python", "dasymetric_dask.py"]
           resources:
             requests:
-              cpu: "0.5"
+              cpu: "4"
               memory: "6Gi"
             limits:
-              cpu: "1"
+              cpu: "6"
               memory: "8Gi"      # raise if you still OOM
           env:
             - name: DASK_SCHEDULER
@@ -170,6 +170,7 @@ spec:
             - name: dask-tmp
               mountPath: /dask-tmp
           
+
 
 
 
