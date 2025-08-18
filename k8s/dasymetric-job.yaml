@@ -245,7 +245,7 @@ spec:
             - name: POP_FIELD
               value: POP20
             - name: BATCH_SIZE
-              value: "40"         # lower batch reduces in-memory working set
+              value: "20"         # lower batch reduces in-memory working set
 
             # --- GDAL/RasterIO cache sizing (in MB) ---
             - name: GDAL_CACHEMAX
@@ -279,6 +279,7 @@ spec:
               mountPath: /dask-tmp
 
           
+
 
 
 
