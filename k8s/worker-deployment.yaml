@@ -77,7 +77,7 @@ spec:
           - worker
           - tcp://dask-scheduler:8786
           - "--nthreads"
-          - "1"
+          - "2"
         resources:
           requests:
             cpu: "2"
@@ -93,6 +93,7 @@ spec:
             mountPath: /output
       
       
+
 
 
 
