@@ -56,7 +56,7 @@ spec:
         resources:
           requests:
             cpu: "2"
-            memory: "12Gi"
+            memory: "14Gi"
           # limits:
           #   cpu: "1"
           #   memory: "14Gi"
@@ -65,6 +65,7 @@ spec:
 
           - containerPort: 8787
        
+
 
 
 
