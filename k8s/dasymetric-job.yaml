@@ -221,10 +221,10 @@ spec:
           resources:
             requests:
               cpu: "4"
-              memory: "6Gi"
+              memory: "2Gi"
             limits:
               cpu: "6"
-              memory: "8Gi"
+              memory: "4Gi"
           env:
             - name: DASK_SCHEDULER
               value: tcp://dask-scheduler:8786
@@ -279,6 +279,7 @@ spec:
               mountPath: /dask-tmp
 
           
+
 
 
 
