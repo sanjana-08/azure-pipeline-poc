@@ -1,74 +1,46 @@
-# # k8s/worker-deployment.yaml
-# apiVersion: apps/v1
-# kind: Deployment
-# metadata:
-#   name: dask-worker
-# spec:
-#   replicas: 2
-#   selector:
-#     matchLabels:
-#       app: dask-worker
-#   template:
-#     metadata:
-#       labels:
-#         app: dask-worker
-#     spec:
-#       volumes:
-#         - name: data
-#           hostPath:
-#             path: /data
-#             type: Directory
-#         - name: output
-#           hostPath:
-#             path: /output
-#             type: Directory
-#       containers:
-#       - name: worker
-#         image: dasymetric:latest
-#         imagePullPolicy: Never
+# # k8s/worker-deployment.yaml      
 
-#         command:
-#           - dask
-#           - worker
-#           - tcp://dask-scheduler:8786
-#           - "--nworkers"
-#           - "2"
-#           - "--nthreads"
-#           - "6"
-#           - "--memory-limit"
-#           - "3GB"
-#         env:
-#           - name: DASK_SCHEDULER
-#             value: tcp://dask-scheduler:8786
-#         volumeMounts:
-#           - name: data
-#             mountPath: /data
-#           - name: output
-#             mountPath: /output
-# k8s/worker-deployment-aks.yaml
 # apiVersion: apps/v1
 # kind: Deployment
 # metadata:
 #   name: dask-worker
 # spec:
-#   replicas: 10
+#   replicas: 14
 #   selector:
 #     matchLabels: { app: dask-worker }
 #   template:
 #     metadata:
 #       labels: { app: dask-worker }
 #     spec:
+#       # Pin to your user pool (uncomment + set):
 #       # nodeSelector:
-#       #     agentpool: test 
+#       #   kubernetes.azure.com/agentpool: <your-worker-pool>
+#       # tolerations:
+#       # - key: "raster"         # if you tainted the pool
+#       #   operator: "Equal"
+#       #   value: "true"
+#       #   effect: "NoSchedule"
+
+#       terminationGracePeriodSeconds: 60
 #       imagePullSecrets:
 #         - name: acr-auth
+
+#       # Spread workers evenly across nodes
+#       topologySpreadConstraints:
+#       - maxSkew: 1
+#         topologyKey: kubernetes.io/hostname
+#         whenUnsatisfiable: ScheduleAnyway
+#         labelSelector: { matchLabels: { app: dask-worker } }
+
 #       volumes:
 #         - name: data
-#           persistentVolumeClaim:
-#             claimName: data-pvc
+#           persistentVolumeClaim: { claimName: data-pvc }
 #         - name: output
-#           persistentVolumeClaim:
-#             claimName: output-pvc
+#           persistentVolumeClaim: { claimName: output-pvc }
+#         - name: dask-tmp                   # NVMe-backed spill/scratch
+#           emptyDir:
+#             sizeLimit: "100Gi"
+
 #       containers:
 #       - name: worker
 #         image: popaloc.azurecr.io/samples/dasymetric:latest
@@ -76,105 +48,40 @@
 #           - dask
 #           - worker
 #           - tcp://dask-scheduler:8786
-#           - "--nthreads"
-#           - "2"
+#           - "--nthreads"                   # 1 thread → no GIL contention
+#           - "1"
+#           - "--memory-limit"               # align with requests
+#           - "12Gi"
+#         env:
+#           - name: DASK_TEMPORARY_DIRECTORY # spill to local NVMe
+#             value: /dask-tmp
+#           - name: DASK_DISTRIBUTED__SCHEDULER__WORK_STEALING
+#             value: "True"
+#           # Optional: tune memory spill thresholds (helps avoid OOM/slowdowns)
+#           - name: DASK_DISTRIBUTED__WORKER__MEMORY__TARGET
+#             value: "0.7"
+#           - name: DASK_DISTRIBUTED__WORKER__MEMORY__SPILL
+#             value: "0.9"
+#           - name: DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE
+#             value: "0.8"
+#           - name: DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE
+#             value: "0.95"
 #         resources:
 #           requests:
-#             cpu: "2"
-#             memory: "12Gi"
-#           limits:
-#             cpu: "3"
+#             cpu: "4"
 #             memory: "16Gi"
-
+#           limits:
+#             cpu: "6"
+#             memory: "18Gi"
 #         volumeMounts:
 #           - name: data
 #             mountPath: /data
+#             readOnly: true            # safer/faster for shared inputs
 #           - name: output
 #             mountPath: /output
-      
-      
+#           - name: dask-tmp
+#             mountPath: /dask-tmp
 
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: dask-worker
-spec:
-  replicas: 14
-  selector:
-    matchLabels: { app: dask-worker }
-  template:
-    metadata:
-      labels: { app: dask-worker }
-    spec:
-      # Pin to your user pool (uncomment + set):
-      # nodeSelector:
-      #   kubernetes.azure.com/agentpool: <your-worker-pool>
-      # tolerations:
-      # - key: "raster"         # if you tainted the pool
-      #   operator: "Equal"
-      #   value: "true"
-      #   effect: "NoSchedule"
-
-      terminationGracePeriodSeconds: 60
-      imagePullSecrets:
-        - name: acr-auth
-
-      # Spread workers evenly across nodes
-      topologySpreadConstraints:
-      - maxSkew: 1
-        topologyKey: kubernetes.io/hostname
-        whenUnsatisfiable: ScheduleAnyway
-        labelSelector: { matchLabels: { app: dask-worker } }
-
-      volumes:
-        - name: data
-          persistentVolumeClaim: { claimName: data-pvc }
-        - name: output
-          persistentVolumeClaim: { claimName: output-pvc }
-        - name: dask-tmp                   # NVMe-backed spill/scratch
-          emptyDir:
-            sizeLimit: "100Gi"
-
-      containers:
-      - name: worker
-        image: popaloc.azurecr.io/samples/dasymetric:latest
-        command:
-          - dask
-          - worker
-          - tcp://dask-scheduler:8786
-          - "--nthreads"                   # 1 thread → no GIL contention
-          - "1"
-          - "--memory-limit"               # align with requests
-          - "12Gi"
-        env:
-          - name: DASK_TEMPORARY_DIRECTORY # spill to local NVMe
-            value: /dask-tmp
-          - name: DASK_DISTRIBUTED__SCHEDULER__WORK_STEALING
-            value: "True"
-          # Optional: tune memory spill thresholds (helps avoid OOM/slowdowns)
-          - name: DASK_DISTRIBUTED__WORKER__MEMORY__TARGET
-            value: "0.7"
-          - name: DASK_DISTRIBUTED__WORKER__MEMORY__SPILL
-            value: "0.9"
-          - name: DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE
-            value: "0.8"
-          - name: DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE
-            value: "0.95"
-        resources:
-          requests:
-            cpu: "4"
-            memory: "16Gi"
-          limits:
-            cpu: "6"
-            memory: "18Gi"
-        volumeMounts:
-          - name: data
-            mountPath: /data
-            readOnly: true            # safer/faster for shared inputs
-          - name: output
-            mountPath: /output
-          - name: dask-tmp
-            mountPath: /dask-tmp
 
 
 
