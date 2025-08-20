@@ -99,7 +99,7 @@ kind: Deployment
 metadata:
   name: dask-worker
 spec:
-  replicas: 36
+  replicas: 21
   selector:
     matchLabels: { app: dask-worker }
   template:
@@ -162,11 +162,11 @@ spec:
             value: "0.95"
         resources:
           requests:
-            cpu: "2"
-            memory: "7.5Gi"
-          limits:
-            cpu: "3"
+            cpu: "4"
             memory: "16Gi"
+          limits:
+            cpu: "6"
+            memory: "18Gi"
         volumeMounts:
           - name: data
             mountPath: /data
@@ -175,6 +175,7 @@ spec:
             mountPath: /output
           - name: dask-tmp
             mountPath: /dask-tmp
+
 
 
 
