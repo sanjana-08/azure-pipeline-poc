@@ -163,7 +163,7 @@ spec:
         resources:
           requests:
             cpu: "2"
-            memory: "8Gi"
+            memory: "7.5Gi"
           limits:
             cpu: "3"
             memory: "16Gi"
@@ -175,6 +175,7 @@ spec:
             mountPath: /output
           - name: dask-tmp
             mountPath: /dask-tmp
+
 
 
 
