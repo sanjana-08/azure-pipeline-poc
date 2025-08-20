@@ -175,7 +175,7 @@ spec:
             value: "0.95"
         resources:
           requests:
-            cpu: "5"
+            cpu: "4"
             memory: "16Gi"
           limits:
             cpu: "6"
@@ -190,6 +190,7 @@ spec:
             mountPath: /dask-tmp
           - name: ssd
             mountPath: /mnt/ssd
+
 
 
 
