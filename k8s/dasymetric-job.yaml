@@ -242,7 +242,7 @@ spec:
 
             # --- Work partitioning knobs (tune based on worker count/memory) ---
             - name: TILE_SIZE
-              value: "1028"       # was ~1000; adjust to balance per-task RAM
+              value: "2048"       # was ~1000; adjust to balance per-task RAM
             - name: POP_FIELD
               value: POP20
             - name: BATCH_SIZE
@@ -280,6 +280,7 @@ spec:
               mountPath: /dask-tmp
 
           
+
 
 
 
