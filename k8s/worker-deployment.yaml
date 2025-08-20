@@ -131,10 +131,10 @@ spec:
             mkdir -p /mnt/ssd/data
             # Copy the LULC once per pod from the PVC to local SSD.
             # Adjust the source path/filename if yours differs.
-            if [ -f /data/NLCD_Harris.tif ]; then
-              cp -f /data/NLCD_Harris.tif /mnt/ssd/data/lulc.tif
+            if [ -f /data/NLCD_east_texas.tif ]; then
+              cp -f /data/NLCD_east_texas.tif /mnt/ssd/data/lulc.tif
             else
-              echo "ERROR: /data/NLCD_Harris.tif not found on PVC" >&2
+              echo "ERROR: /data/NLCD_east_texas.tif not found on PVC" >&2
               exit 1
             fi
             ls -lh /mnt/ssd/data
@@ -159,7 +159,7 @@ spec:
         env:
           # Tell your code to read the local SSD copy (fast)
           - name: LULC_FILE
-            value: /mnt/ssd/data/NLCD_Harris.tif
+            value: /mnt/ssd/data/NLCD_east_texas.tif
           - name: DASK_TEMPORARY_DIRECTORY
             value: /dask-tmp
           - name: DASK_DISTRIBUTED__SCHEDULER__WORK_STEALING
@@ -190,6 +190,7 @@ spec:
             mountPath: /dask-tmp
           - name: ssd
             mountPath: /mnt/ssd
+
 
 
 
