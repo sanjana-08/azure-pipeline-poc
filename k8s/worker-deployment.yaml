@@ -84,6 +84,113 @@
 
 
 
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dask-worker
+spec:
+  replicas: 14
+  selector:
+    matchLabels: { app: dask-worker }
+  template:
+    metadata:
+      labels: { app: dask-worker }
+    spec:
+      terminationGracePeriodSeconds: 60
+      imagePullSecrets:
+        - name: acr-auth
+
+      # Spread workers evenly across nodes
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector: { matchLabels: { app: dask-worker } }
+
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: data-pvc }     # your input PVC (contains /data/lulc.tif)
+        - name: output
+          persistentVolumeClaim: { claimName: output-pvc }
+        - name: dask-tmp                                        # NVMe-backed spill/scratch
+          emptyDir:
+            sizeLimit: "100Gi"
+        - name: ssd                                             # node-local SSD for fast reads
+          emptyDir:
+            medium: ""                                          # "" = node disk (NVMe/OS disk), not RAM
+            sizeLimit: "150Gi"
+
+      # Copy from PVC -> node-local SSD before the worker starts
+      initContainers:
+      - name: seed-lulc
+        image: alpine:3.20
+        command: ["/bin/sh","-lc"]
+        args:
+          - |
+            set -eux
+            mkdir -p /mnt/ssd/data
+            # Copy the LULC once per pod from the PVC to local SSD.
+            # Adjust the source path/filename if yours differs.
+            if [ -f /data/lulc.tif ]; then
+              cp -f /data/lulc.tif /mnt/ssd/data/lulc.tif
+            else
+              echo "ERROR: /data/lulc.tif not found on PVC" >&2
+              exit 1
+            fi
+            ls -lh /mnt/ssd/data
+        volumeMounts:
+          - name: data
+            mountPath: /data
+            readOnly: true
+          - name: ssd
+            mountPath: /mnt/ssd
+
+      containers:
+      - name: worker
+        image: popaloc.azurecr.io/samples/dasymetric:latest
+        command:
+          - dask
+          - worker
+          - tcp://dask-scheduler:8786
+          - "--nthreads"          # 1 thread → avoid GIL contention; scale via replicas
+          - "1"
+          - "--memory-limit"      # align with requests; your code is memory-heavy per tile
+          - "12Gi"
+        env:
+          # Tell your code to read the local SSD copy (fast)
+          - name: LULC_FILE
+            value: /mnt/ssd/data/lulc.tif
+          - name: DASK_TEMPORARY_DIRECTORY
+            value: /dask-tmp
+          - name: DASK_DISTRIBUTED__SCHEDULER__WORK_STEALING
+            value: "True"
+          # Optional: spill thresholds—tune as needed
+          - name: DASK_DISTRIBUTED__WORKER__MEMORY__TARGET
+            value: "0.7"
+          - name: DASK_DISTRIBUTED__WORKER__MEMORY__SPILL
+            value: "0.9"
+          - name: DASK_DISTRIBUTED__WORKER__MEMORY__PAUSE
+            value: "0.8"
+          - name: DASK_DISTRIBUTED__WORKER__MEMORY__TERMINATE
+            value: "0.95"
+        resources:
+          requests:
+            cpu: "4"
+            memory: "16Gi"
+          limits:
+            cpu: "6"
+            memory: "18Gi"
+        volumeMounts:
+          - name: data
+            mountPath: /data
+            readOnly: true
+          - name: output
+            mountPath: /output
+          - name: dask-tmp
+            mountPath: /dask-tmp
+          - name: ssd
+            mountPath: /mnt/ssd
+
 
 
 
