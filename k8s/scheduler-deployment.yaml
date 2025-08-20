@@ -31,6 +31,41 @@
 #           initialDelaySeconds: 5
 #           periodSeconds: 10
 
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: dask-scheduler
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels: { app: dask-scheduler }
+#   template:
+#     metadata:
+#       labels: { app: dask-scheduler }
+#       annotations:
+#         cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
+#     spec:
+#       # nodeSelector:
+#       #     agentpool: test
+#       imagePullSecrets:
+#         - name: acr-auth  # create this via `az acr update —attach-acr` or pull secret
+#       containers:
+#       - name: scheduler
+#         image: popaloc.azurecr.io/samples/dasymetric:latest
+#         command: ["dask", "scheduler"]
+#         resources:
+#           requests:
+#             cpu: "2"
+#             memory: "14Gi"
+#           # limits:
+#           #   cpu: "1"
+#           #   memory: "14Gi"
+#         ports:
+#           - containerPort: 8786
+
+#           - containerPort: 8787
+       
+# dask-scheduler Deployment (unchanged apart from context)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -38,33 +73,61 @@ metadata:
 spec:
   replicas: 1
   selector:
-    matchLabels: { app: dask-scheduler }
+    matchLabels:
+      app: dask-scheduler
   template:
     metadata:
-      labels: { app: dask-scheduler }
+      labels:
+        app: dask-scheduler
       annotations:
         cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
     spec:
-      # nodeSelector:
-      #     agentpool: test
+      terminationGracePeriodSeconds: 120
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: dask-worker
+              topologyKey: kubernetes.io/hostname
       imagePullSecrets:
-        - name: acr-auth  # create this via `az acr update —attach-acr` or pull secret
+        - name: acr-auth
       containers:
       - name: scheduler
         image: popaloc.azurecr.io/samples/dasymetric:latest
-        command: ["dask", "scheduler"]
+        args: ["dask","scheduler","--dashboard-address=:8787"]
         resources:
-          requests:
-            cpu: "2"
-            memory: "14Gi"
-          # limits:
-          #   cpu: "1"
-          #   memory: "14Gi"
+          requests: { cpu: "2", memory: "14Gi" }
+          limits:   { cpu: "2", memory: "14Gi" }   # Guaranteed QoS
         ports:
-          - containerPort: 8786
+          - name: tcp-comm
+            containerPort: 8786
+          - name: http-dashboard
+            containerPort: 8787
+        livenessProbe:
+          tcpSocket: { port: 8786 }
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 6
+        readinessProbe:
+          tcpSocket: { port: 8786 }
+          initialDelaySeconds: 10
+          periodSeconds: 5
+---
+# PDB can live in the same file; it's a separate resource
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dask-scheduler-pdb
+  # namespace: default   # uncomment/set if you’re NOT applying with -n <ns>
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: dask-scheduler
 
-          - containerPort: 8787
-       
 
 
 
