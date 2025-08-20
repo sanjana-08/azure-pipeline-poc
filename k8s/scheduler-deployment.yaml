@@ -1,35 +1,35 @@
-# k8s/scheduler-deployment.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: dask-scheduler
-spec:
-  replicas: 2
-  selector:
-    matchLabels: { app: dask-scheduler }
-  template:
-    metadata:
-      labels: { app: dask-scheduler }
-    spec:
-      containers:
-      - name: scheduler
-        image: dasymetric:latest
-        imagePullPolicy: Never
-        command: ["dask", "scheduler"]
-        env:
-          - name: DASK_DISTRIBUTED__WORKER__MEMORY__TARGET
-            value: "0.8"
-          - name: DASK_DISTRIBUTED__WORKER_MEMORY__SPILL
-            value: "0.9"
-        ports:
-          - containerPort: 8786
-          - containerPort: 8787
-        readinessProbe:
-          httpGet:
-            path: /status
-            port: 8787
-          initialDelaySeconds: 5
-          periodSeconds: 10
+# # k8s/scheduler-deployment.yaml
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: dask-scheduler
+# spec:
+#   replicas: 2
+#   selector:
+#     matchLabels: { app: dask-scheduler }
+#   template:
+#     metadata:
+#       labels: { app: dask-scheduler }
+#     spec:
+#       containers:
+#       - name: scheduler
+#         image: dasymetric:latest
+#         imagePullPolicy: Never
+#         command: ["dask", "scheduler"]
+#         env:
+#           - name: DASK_DISTRIBUTED__WORKER__MEMORY__TARGET
+#             value: "0.8"
+#           - name: DASK_DISTRIBUTED__WORKER_MEMORY__SPILL
+#             value: "0.9"
+#         ports:
+#           - containerPort: 8786
+#           - containerPort: 8787
+#         readinessProbe:
+#           httpGet:
+#             path: /status
+#             port: 8787
+#           initialDelaySeconds: 5
+#           periodSeconds: 10
 
 apiVersion: apps/v1
 kind: Deployment
@@ -65,6 +65,7 @@ spec:
 
           - containerPort: 8787
        
+
 
 
 
