@@ -274,6 +274,9 @@ weights = {
     81: 0.5, 82: 0.5, 90: 0.0, 95: 0.0, 250: 0.0
 }
 
+# Use a constant, 16-multiple block size for tiled GeoTIFFs
+GTIFF_BLOCK = 512  # must be a multiple of 16 (16, 32, 64, 128, 256, 512, ...)
+
 # -----------------------------
 # HELPERS
 # -----------------------------
@@ -284,32 +287,28 @@ def generate_tiles(width, height, ts):
                          min(ts, width - col_off),
                          min(ts, height - row_off))
 
-def process_tile(row_off, col_off, rows, cols, lulc_fp, weights, pop_field,
-                 idxs, gdf, tile_dir):
+def process_tile(window, lulc_fp, gdf, weights, pop_field, tile_dir):
     """
     Runs on a worker:
       - Read LULC window
-      - Subset polygons to tile (using provided indices)
+      - Subset polygons to tile by bbox
       - Allocate population by weights
-      - Write tile GeoTIFF
+      - Write tile GeoTIFF with valid (multiple-of-16) block sizes
       - Return small metadata only
     """
-    import numpy as np
-    import rasterio
-    import rasterio.features
-
-    w = Window(col_off, row_off, cols, rows)
     with rasterio.open(lulc_fp) as src:
-        lulc_tile = src.read(1, window=w)
-        transform = src.window_transform(w)
+        lulc_tile = src.read(1, window=window)
+        transform = src.window_transform(window)
         crs = src.crs
+        bounds = rasterio.windows.bounds(window, src.transform)
 
-    if not idxs:
+    bbox = box(*bounds)
+    tile_blocks = gdf[gdf.intersects(bbox)].copy()
+
+    if tile_blocks.empty:
         pop_tile = np.zeros(lulc_tile.shape, dtype=np.float32)
     else:
-        tile_blocks = gdf.iloc[idxs]
         pop_tile = np.zeros_like(lulc_tile, dtype=np.float32)
-
         for _, row in tile_blocks.iterrows():
             geom = row.geometry
             pop  = float(row[pop_field])
@@ -318,7 +317,6 @@ def process_tile(row_off, col_off, rows, cols, lulc_fp, weights, pop_field,
             lc_masked = np.where(mask, lulc_tile, np.nan)
 
             weight_r = np.zeros_like(lc_masked, dtype=np.float32)
-            # assign weights per class
             for lc_class, wgt in weights.items():
                 weight_r[lc_masked == lc_class] = wgt
 
@@ -327,26 +325,26 @@ def process_tile(row_off, col_off, rows, cols, lulc_fp, weights, pop_field,
                 pop_tile += (weight_r / total) * pop
 
     # Write per-tile file (COG-friendly tiling/compression)
+    row_off, col_off, rows, cols = int(window.row_off), int(window.col_off), int(window.height), int(window.width)
     tile_path = os.path.join(tile_dir, f"tile_r{row_off}_c{col_off}.tif")
     profile = {
         "driver": "GTiff",
-        "height": int(rows),
-        "width": int(cols),
+        "height": rows,
+        "width": cols,
         "count": 1,
         "dtype": "float32",
         "crs": crs,
         "transform": transform,
         "compress": "lzw",
         "tiled": True,
-        "blockxsize": min(int(cols), 512),
-        "blockysize": min(int(rows), 512),
+        "blockxsize": GTIFF_BLOCK,  # constant, multiple of 16
+        "blockysize": GTIFF_BLOCK,  # constant, multiple of 16
         "nodata": 0.0,
     }
     with rasterio.open(tile_path, "w", **profile) as dst:
         dst.write(pop_tile, 1)
 
-    return {"row_off": int(row_off), "col_off": int(col_off),
-            "rows": int(rows), "cols": int(cols), "path": tile_path}
+    return {"row_off": row_off, "col_off": col_off, "rows": rows, "cols": cols, "path": tile_path}
 
 # -----------------------------
 # MAIN
@@ -359,12 +357,11 @@ if __name__ == "__main__":
     print(f"Tile:   {tile_size}")
     print(f"Field:  {pop_field}")
 
-    # 1) Load census polygons; keep only what we need
+    # 1) Load census polygons and align CRS
     t0 = time.time()
     gdf = gpd.read_file(census_fp)
     if pop_field not in gdf.columns:
         raise SystemExit(f"ERROR: '{pop_field}' not in columns: {list(gdf.columns)}")
-    gdf = gdf[[pop_field, "geometry"]]  # slim to reduce scatter size
     with rasterio.open(lulc_fp) as src0:
         width, height = src0.width, src0.height
         raster_crs = src0.crs
@@ -374,61 +371,33 @@ if __name__ == "__main__":
         gdf = gdf.to_crs(raster_crs)
     print(f"Loaded {len(gdf)} blocks in {time.time()-t0:.2f}s; CRS aligned: {gdf.crs == raster_crs}")
 
-    # 2) Connect to Dask
+    # 2) Dask client
     client = Client(os.getenv("DASK_SCHEDULER", None))
-    workers_ct = len(client.scheduler_info().get("workers", {}))
-    print(f"Dask connected. Workers: {workers_ct}")
+    print(f"Dask Client: {client}")
+    print(f"Workers: {len(client.scheduler_info()['workers'])}")
 
-    # 3) Build tiles and pre-index polygons per tile using spatial index
-    print("Indexing polygons per tile…")
+    # 3) Generate tiles
     tiles = list(generate_tiles(width, height, tile_size))
-    # Spatial index (requires rtree or pygeos; fallback to brute intersect)
-    sindex = getattr(gdf, "sindex", None)
-    tile_indices = []
-    if sindex is not None:
-        for w in tiles:
-            bbox = box(*rasterio.windows.bounds(w, full_transform))
-            idxs = list(sindex.query(bbox, predicate="intersects"))
-            tile_indices.append(idxs)
-    else:
-        # Fallback (slower): check intersects on bbox
-        for w in tiles:
-            bbox = box(*rasterio.windows.bounds(w, full_transform))
-            idxs = list(gdf[gdf.intersects(bbox)].index)
-            tile_indices.append(idxs)
+    print(f"Generated {len(tiles)} tiles")
 
-    # 4) Scatter GeoDataFrame ONCE (broadcast) to all workers
-    gdf_b = client.scatter(gdf, broadcast=True)
+    # 4) Submit tasks (each writes its own tile and returns small metadata)
+    print("Submitting tile tasks…")
+    futures = [client.submit(process_tile, w, lulc_fp, gdf, weights, pop_field, tile_out_dir, pure=False)
+               for w in tiles]
 
-    # 5) Submit worker tasks (each writes its own tile)
-    print(f"Submitting {len(tiles)} tile tasks…")
-    futures = []
-    for w, idxs in zip(tiles, tile_indices):
-        fut = client.submit(
-            process_tile,
-            int(w.row_off), int(w.col_off), int(w.height), int(w.width),
-            lulc_fp, weights, pop_field,
-            idxs, gdf_b, tile_out_dir,
-            pure=False  # avoid caching collisions across similar tiles
-        )
-        futures.append(fut)
-
-    # 6) Stream progress and collect small metadata (no giant gather)
+    # 5) Stream progress & collect metadata (no giant gather)
     metas = []
     done = 0
     total = len(futures)
-    t_exec = time.time()
     print("Monitoring progress…")
     for fut in as_completed(futures):
-        metas.append(fut.result())  # small dict only
+        metas.append(fut.result())
         done += 1
         if done % 10 == 0 or done == total:
             print(f"Progress: {done}/{total} tiles ({100*done/total:.1f}%)")
-        # Drop reference ASAP (lets scheduler forget completed keys)
-        del fut
-    print(f"Tile compute finished in {time.time()-t_exec:.1f}s")
+        del fut  # drop reference so scheduler can forget completed keys
 
-    # 7) Final mosaic write (sequential, windowed → constant memory)
+    # 6) Final mosaic write (sequential, windowed → constant memory)
     print("Writing final mosaic…")
     out_profile = full_profile.copy()
     out_profile.update(
@@ -437,11 +406,10 @@ if __name__ == "__main__":
         compress="lzw",
         nodata=0.0,
         tiled=True,
-        blockxsize=min(tile_size, 512),
-        blockysize=min(tile_size, 512),
+        blockxsize=GTIFF_BLOCK,  # keep 16-multiple here too
+        blockysize=GTIFF_BLOCK,
     )
     out_path = os.path.join(output_dir, "population_30m.tif")
-    t_merge = time.time()
     with rasterio.open(out_path, "w", **out_profile) as dst:
         for i, m in enumerate(metas, 1):
             if i % 50 == 0 or i == len(metas):
@@ -450,9 +418,8 @@ if __name__ == "__main__":
             with rasterio.open(m["path"]) as src_tile:
                 arr = src_tile.read(1)
             dst.write(arr, 1, window=w)
-    print(f"Mosaic written to {out_path} in {time.time()-t_merge:.1f}s")
 
-    # 8) STAC sidecar
+    # 7) STAC sidecar
     stac = {
         "type": "Feature",
         "stac_version": "1.0.0",
@@ -477,6 +444,8 @@ if __name__ == "__main__":
 
     print("=== PROCESSING COMPLETE ===")
     print(f"Output:\n  - {out_path}\n  - {os.path.join(output_dir, 'stac_metadata.json')}")
+
+
 
 
 
