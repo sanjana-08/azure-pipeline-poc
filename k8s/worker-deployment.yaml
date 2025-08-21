@@ -132,7 +132,7 @@ spec:
             # Copy the LULC once per pod from the PVC to local SSD.
             # Adjust the source path/filename if yours differs.
             if [ -f /data/NLCD_east_texas.tif ]; then
-              cp -f /data/NLCD_east_texas.tif /mnt/ssd/data/lulc.tif
+              cp -f /data/NLCD_east_texas.tif /mnt/ssd/data/NLCD_east_texas.tif
             else
               echo "ERROR: /data/NLCD_east_texas.tif not found on PVC" >&2
               exit 1
@@ -190,6 +190,7 @@ spec:
             mountPath: /dask-tmp
           - name: ssd
             mountPath: /mnt/ssd
+
 
 
 
