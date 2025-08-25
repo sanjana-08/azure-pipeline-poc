@@ -191,9 +191,11 @@ if __name__ == "__main__":
         print(f"   Available columns: {list(gdf.columns)}")
         exit(1)
 
-    print(
-        f"   Population stats: min={gdf[pop_field].min()}, max={gdf[pop_field].max()}, mean={gdf[pop_field].mean():.2f}")
-
+    # print(
+    #     f"   Population stats: min={gdf[pop_field].min()}, max={gdf[pop_field].max()}, mean={gdf[pop_field].mean():.2f}")
+    vals = dd.to_numeric(gdf[pop_field], errors="coerce")
+    min_v, max_v, mean_v = dask.compute(vals.min(), vals.max(), vals.mean())
+    print(f"   Population stats: min={float(min_v):.0f}, max={float(max_v):.0f}, mean={float(mean_v):.2f}")
     print("\n3. Loading LULC raster...")
     start_time = time.time()
     # with rasterio.open(lulc_fp) as src:
