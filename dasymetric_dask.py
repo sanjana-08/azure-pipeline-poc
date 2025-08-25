@@ -172,9 +172,15 @@ if __name__ == "__main__":
     print(f"Tile size: {tile_size}")
     print(f"Population field: {pop_field}")
 
-    print("\n1. Loading census data...")
+   
+
+    print("\n1. Connecting to Dask scheduler...")
+    client = Client(os.getenv("DASK_SCHEDULER", None))
+    print(f"   Dask Client: {client}")
+    print(f"   Workers: {len(client.scheduler_info()['workers'])}")
     start_time = time.time()
     #gdf = gpd.read_file(census_fp)
+    print("\n2. Loading census data...")
     gdf = dd.read_parquet(census_fp)
     print(f"   Loaded {len(gdf)} census blocks in {time.time() - start_time:.2f} seconds")
     print(f"   Available columns: {list(gdf.columns)}")
@@ -188,7 +194,7 @@ if __name__ == "__main__":
     print(
         f"   Population stats: min={gdf[pop_field].min()}, max={gdf[pop_field].max()}, mean={gdf[pop_field].mean():.2f}")
 
-    print("\n2. Loading LULC raster...")
+    print("\n3. Loading LULC raster...")
     start_time = time.time()
     # with rasterio.open(lulc_fp) as src:
     #     width, height = src.width, src.height
@@ -205,10 +211,7 @@ if __name__ == "__main__":
     crs = rsd.rio.crs
     #profile = rsd.profile
 
-    print("\n3. Connecting to Dask scheduler...")
-    client = Client(os.getenv("DASK_SCHEDULER", None))
-    print(f"   Dask Client: {client}")
-    print(f"   Workers: {len(client.scheduler_info()['workers'])}")
+   
 
     print("\n4. Generating tiles...")
     tiles = list(generate_tiles(width, height, tile_size))
