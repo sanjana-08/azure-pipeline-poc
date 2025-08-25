@@ -1,10 +1,14 @@
 bokeh>=3.1.0
 dask[distributed]>=2023.1.0
+dask[dataframe]
 fiona
 geopandas
 numpy
 rasterio
 rasterstats
 shapely
+xarray
+rioxarray
+
 
 
