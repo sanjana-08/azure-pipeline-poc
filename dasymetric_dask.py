@@ -195,7 +195,7 @@ if __name__ == "__main__":
     print("\n2. Loading census data...")
     gdf = ddg.read_parquet(census_fp,gather_spatial_partitions=False)
    
-    gdf = gdf.set_spatial_partitioning()
+    #gdf = gdf.set_spatial_partitioning()
     print(f"   Loaded {len(gdf)} census blocks in {time.time() - start_time:.2f} seconds")
     print(f"   Available columns: {list(gdf.columns)}")
 
@@ -229,7 +229,7 @@ if __name__ == "__main__":
     if gdf.crs is None:
         gdf = gdf.set_crs(crs)
     elif gdf.crs != crs:
-        dgdf = gdf.to_crs(crs)
+        gdf = gdf.to_crs(crs)
    
 
     print("\n4. Generating tiles...")
