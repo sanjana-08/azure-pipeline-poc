@@ -1,5 +1,6 @@
 import dask
 import dask.dataframe as dd
+import dask_geopandas as ddg
 import geopandas as gpd
 import json
 import numpy as np
@@ -9,6 +10,9 @@ import rasterio
 import rasterio.features
 import rioxarray
 import time
+
+
+
 from rasterio.windows import Window
 from rasterio.windows import transform as window_transform
 from dask.distributed import as_completed
@@ -135,13 +139,21 @@ def process_tile(window: Window, lulc_fp, gdf, weights, pop_field):
 
     # window-specific transform using the full-raster transform
     full_transform = rsd.rio.transform()
+    r_crs = rsd.rio.crs
     transform = window_transform(window, full_transform)
     # crs = rsd.rio.crs  # if you need it
 
     # spatial filter with bbox for polygons
     from shapely.geometry import box
     bbox = box(*rasterio.windows.bounds(window, transform))
-    tile_blocks = gdf[gdf.intersects(bbox)].copy()
+    bbox_gdf = gpd.GeoDataFrame(geometry=[bbox], crs=r_crs)
+    #tile_blocks = gdf[gdf.intersects(bbox)].copy()
+    #tile_blocks = gdf.sjoin(bbox, how='inner', predicate='intersects').copy()
+    tile_blocks = (
+        gdf.sjoin(bbox_gdf, how="inner", predicate="intersects")
+            .drop(columns=["index_right"])
+            .compute()                      # now a GeoPandas GeoDataFrame
+    )
     if tile_blocks.empty:
         return np.zeros(lulc_tile.shape, dtype=np.float32), transform, window
 
@@ -181,7 +193,9 @@ if __name__ == "__main__":
     start_time = time.time()
     #gdf = gpd.read_file(census_fp)
     print("\n2. Loading census data...")
-    gdf = dd.read_parquet(census_fp)
+    gdf = ddg.read_parquet(census_fp)
+   
+    gdf = gdf.set_spatial_partitioning()
     print(f"   Loaded {len(gdf)} census blocks in {time.time() - start_time:.2f} seconds")
     print(f"   Available columns: {list(gdf.columns)}")
 
@@ -193,9 +207,9 @@ if __name__ == "__main__":
 
     # print(
     #     f"   Population stats: min={gdf[pop_field].min()}, max={gdf[pop_field].max()}, mean={gdf[pop_field].mean():.2f}")
-    vals = dd.to_numeric(gdf[pop_field], errors="coerce")
-    min_v, max_v, mean_v = dask.compute(vals.min(), vals.max(), vals.mean())
-    print(f"   Population stats: min={float(min_v):.0f}, max={float(max_v):.0f}, mean={float(mean_v):.2f}")
+    # vals = dd.to_numeric(gdf[pop_field], errors="coerce")
+    # min_v, max_v, mean_v = dask.compute(vals.min(), vals.max(), vals.mean())
+    # print(f"   Population stats: min={float(min_v):.0f}, max={float(max_v):.0f}, mean={float(mean_v):.2f}")
     print("\n3. Loading LULC raster...")
     start_time = time.time()
     # with rasterio.open(lulc_fp) as src:
@@ -212,7 +226,10 @@ if __name__ == "__main__":
     transform = rsd.rio.transform()
     crs = rsd.rio.crs
     #profile = rsd.profile
-
+    if gdf.crs is None:
+        gdf = gdf.set_crs(crs)
+    elif gdf.crs != crs:
+        dgdf = gdf.to_crs(crs)
    
 
     print("\n4. Generating tiles...")
