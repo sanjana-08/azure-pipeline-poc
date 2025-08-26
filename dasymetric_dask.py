@@ -158,7 +158,8 @@ def process_tile(window: Window, lulc_fp, gdf, weights, pop_field):
     #         .compute()                      # now a GeoPandas GeoDataFrame
     # )
     mask = gdf.geometry.intersects(bbox)      # Dask Series[bool]
-    tile_blocks = gdf[mask].compute()
+    subset = gdf[mask].to_dask_dataframe()
+    tile_blocks = subset.compute()
     if tile_blocks.empty:
         return np.zeros(lulc_tile.shape, dtype=np.float32), transform, window
 
@@ -243,6 +244,7 @@ if __name__ == "__main__":
     print(f"   Generated {len(tiles)} tiles")
 
     print("\n5. Creating Dask tasks...")
+    print(type(gdf))
     tasks = []
     for i, window in enumerate(tiles):
         task = dask.delayed(process_tile)(window, lulc_fp, gdf, weights, pop_field)
