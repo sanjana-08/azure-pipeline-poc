@@ -146,14 +146,14 @@ def process_tile(window: Window, lulc_fp, gdf, weights, pop_field):
     # spatial filter with bbox for polygons
     from shapely.geometry import box
     bbox = box(*rasterio.windows.bounds(window, transform))
-    #bbox_gdf = gpd.GeoDataFrame(geometry=[bbox], crs=r_crs)
-    tile_blocks = gdf[gdf.intersects(bbox)].copy()
-    #tile_blocks = gdf.sjoin(bbox, how='inner', predicate='intersects').copy()
-    # tile_blocks = (
-    #     gdf.sjoin(bbox_gdf, how="inner", predicate="intersects")
-    #         .drop(columns=["index_right"])
-    #         .compute()                      # now a GeoPandas GeoDataFrame
-    # )
+    bbox_gdf = gpd.GeoDataFrame(geometry=[bbox], crs=r_crs)
+    #tile_blocks = gdf[gdf.intersects(bbox)].copy()
+    tile_blocks = gdf.sjoin(bbox, how='inner', predicate='intersects').copy()
+    tile_blocks = (
+        gdf.sjoin(bbox_gdf, how="inner", predicate="intersects")
+            .drop(columns=["index_right"])
+            .compute()                      # now a GeoPandas GeoDataFrame
+    )
     if tile_blocks.empty:
         return np.zeros(lulc_tile.shape, dtype=np.float32), transform, window
 
@@ -193,7 +193,7 @@ if __name__ == "__main__":
     start_time = time.time()
     #gdf = gpd.read_file(census_fp)
     print("\n2. Loading census data...")
-    gdf = ddg.read_parquet(census_fp,gather_spatial_partitions=False)
+    gdf = ddg.read_parquet(census_fp)
    
     #gdf = gdf.set_spatial_partitioning()
     print(f"   Loaded {len(gdf)} census blocks in {time.time() - start_time:.2f} seconds")
