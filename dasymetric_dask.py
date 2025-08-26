@@ -146,12 +146,14 @@ def process_tile(window: Window, lulc_fp, gdf, weights, pop_field):
     # spatial filter with bbox for polygons
     from shapely.geometry import box
     bbox = box(*rasterio.windows.bounds(window, transform))
-    #bbox_gdf = gpd.GeoDataFrame(geometry=[bbox], crs=r_crs)
+    bbox_gdf = gpd.GeoDataFrame(geometry=[bbox], crs=r_crs)
+
+    bbox_dd = ddg.from_geopandas(bbox_gdf, npartitions=1)
     #tile_blocks = gdf[gdf.intersects(bbox)].copy()
     #tile_blocks = gdf.sjoin(bbox, how='inner', predicate='intersects').copy()
     print("PROCESS TILE TYPE", bbox, gdf)
     tile_blocks = (
-        gdf.sjoin(bbox, how="inner", predicate="intersects")
+        gdf.sjoin(bbox_dd, how="inner", predicate="intersects")
             .drop(columns=["index_right"])
             .compute()                      # now a GeoPandas GeoDataFrame
     )
