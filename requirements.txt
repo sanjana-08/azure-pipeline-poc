@@ -1,7 +1,7 @@
 bokeh>=3.1.0
 dask[distributed]>=2023.1.0
 dask[dataframe]
-dask_geopandas
+dask_geopandas>=0.3
 fiona
 geopandas
 numpy
