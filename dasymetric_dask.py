@@ -149,6 +149,8 @@ def process_tile(window: Window, lulc_fp, gdf, weights, pop_field):
     #bbox_gdf = gpd.GeoDataFrame(geometry=[bbox], crs=r_crs)
 
     #bbox_dd = ddg.from_geopandas(bbox_gdf, npartitions=1)
+    mask = gdf.geometry.intersects(bbox)   # GeoSeries[bool]
+    tile_blocks = gdf.loc[mask]
     #tile_blocks = gdf[gdf.intersects(bbox)].copy()
     #tile_blocks = gdf.sjoin(bbox, how='inner', predicate='intersects').copy()
     #print("PROCESS TILE TYPE", bbox, gdf)
@@ -157,9 +159,9 @@ def process_tile(window: Window, lulc_fp, gdf, weights, pop_field):
     #         .drop(columns=["index_right"])
     #         .compute()                      # now a GeoPandas GeoDataFrame
     # )
-    mask = gdf.geometry.intersects(bbox)      # Dask Series[bool]
-    subset = gdf[mask].to_dask_dataframe()
-    tile_blocks = subset.compute()
+    # mask = gdf.geometry.intersects(bbox)      # Dask Series[bool]
+    # subset = gdf[mask].to_dask_dataframe()
+    # tile_blocks = subset.compute()
     if tile_blocks.empty:
         return np.zeros(lulc_tile.shape, dtype=np.float32), transform, window
 
