@@ -290,8 +290,10 @@ if __name__ == "__main__":
     print(f"   Combined results in {time.time() - start_time:.2f} seconds")
     print(f"   Population raster stats: min={pop_raster.min()}, max={pop_raster.max()}, mean={pop_raster.mean():.2f}")
 
-    print("\n8. Saving output...")
+    print("\n8. Saving output...", flush=True)
     start_time = time.time()
+
+    
 
     # Save as COG
     # profile.update(dtype='float32', compress='lzw', nodata=0)
@@ -299,18 +301,20 @@ if __name__ == "__main__":
     # with rasterio.open(output_file, 'w', **profile) as dst:
     #     dst.write(pop_raster, 1)
 
+   # DRIVER (step 8)
     da = xr.DataArray(pop_raster, dims=("y","x"))
     da = da.rio.write_transform(transform).rio.write_crs(crs).rio.write_nodata(0.0)
     output_file = os.path.join(output_dir, "population_30m.tif")
     da.rio.to_raster(
-    output_file,
-    dtype="float32",
-    compress="lzw",
-    tiled=True,
-    blockxsize=512,
-    blockysize=512,
-    BIGTIFF="IF_SAFER",
-)
+        output_file,
+        dtype="float32",
+        compress="lzw",
+        tiled=True,
+        blockxsize=512,
+        blockysize=512,
+        BIGTIFF="IF_SAFER",
+    )
+
     print(f"   Saved population raster: {output_file}")
 
     # Generate STAC metadata
