@@ -193,7 +193,8 @@ if __name__ == "__main__":
     start_time = time.time()
     #gdf = gpd.read_file(census_fp)
     print("\n2. Loading census data...")
-    gdf = ddg.read_parquet(census_fp)
+    gdf = ddg.read_parquet(census_fp,gather_spatial_partitions=False)
+    print("TYPE", type(gdf))
    
     #gdf = gdf.set_spatial_partitioning()
     print(f"   Loaded {len(gdf)} census blocks in {time.time() - start_time:.2f} seconds")
