@@ -302,18 +302,46 @@ if __name__ == "__main__":
     #     dst.write(pop_raster, 1)
 
    # DRIVER (step 8)
-    da = xr.DataArray(pop_raster, dims=("y","x"))
-    da = da.rio.write_transform(transform).rio.write_crs(crs).rio.write_nodata(0.0)
+    # da = xr.DataArray(pop_raster, dims=("y","x"))
+    # da = da.rio.write_transform(transform).rio.write_crs(crs).rio.write_nodata(0.0)
+    # output_file = os.path.join(output_dir, "population_30m.tif")
+    # da.rio.to_raster(
+    #     output_file,
+    #     dtype="float32",
+    #     compress="lzw",
+    #     tiled=True,
+    #     blockxsize=512,
+    #     blockysize=512,
+    #     BIGTIFF="IF_SAFER",
+    # )
+
+    with rasterio.open(lulc_fp) as src:
+        full_transform = src.transform   # global raster transform
+        crs = src.crs                    # global CRS
+        profile = src.profile
+
+
+    profile.update(
+    driver="GTiff",
+    height=height,
+    width=width,
+    count=1,
+    dtype="float32",
+    crs=crs,
+    transform=full_transform,
+    compress="lzw",
+    tiled=True,
+    blockxsize=512,
+    blockysize=512,
+    nodata=0.0,
+    BIGTIFF="IF_SAFER",
+)
+    
     output_file = os.path.join(output_dir, "population_30m.tif")
-    da.rio.to_raster(
-        output_file,
-        dtype="float32",
-        compress="lzw",
-        tiled=True,
-        blockxsize=512,
-        blockysize=512,
-        BIGTIFF="IF_SAFER",
-    )
+    with rasterio.open(output_file, "w", **profile) as dst:
+        dst.write(pop_raster, 1)  # write into the single band
+
+
 
     print(f"   Saved population raster: {output_file}")
 
