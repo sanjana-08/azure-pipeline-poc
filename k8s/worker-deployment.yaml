@@ -176,10 +176,10 @@ spec:
         resources:
           requests:
             cpu: "4"
-            memory: "15Gi"
+            memory: "13Gi"
           limits:
             cpu: "6"
-            memory: "17Gi"
+            memory: "14Gi"
         volumeMounts:
           - name: data
             mountPath: /data

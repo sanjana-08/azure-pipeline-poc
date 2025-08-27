@@ -222,10 +222,10 @@ spec:
           resources:
             requests:
               cpu: "4"
-              memory: "16Gi"
+              memory: "20Gi"
             limits:
               cpu: "6"
-              memory: "17Gi"
+              memory: "21Gi"
           env:
             - name: DASK_SCHEDULER
               value: tcp://dask-scheduler:8786
