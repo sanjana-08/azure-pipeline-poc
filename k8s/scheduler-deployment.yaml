@@ -64,7 +64,7 @@ spec:
           - containerPort: 8786
 
           - containerPort: 8787
-          - nodePort: 30787
+          
        
 
 
