@@ -89,7 +89,7 @@ kind: Deployment
 metadata:
   name: dask-worker
 spec:
-  replicas: 36
+  replicas: 28
   selector:
     matchLabels: { app: dask-worker }
   template:
