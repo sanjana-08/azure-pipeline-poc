@@ -232,13 +232,13 @@ spec:
 
             # --- Input data paths (from PVCs) ---
             - name: CENSUS_FILE
-              #value: /data/tl_2024_48_tabblock20.shp
-              value: /data/east_texas_parquet.parquet
+              value: /data/texas_parquet.parquet
+              #value: /data/east_texas_parquet.parquet
               #value: /data/harris.shp
             - name: LULC_FILE
-              #value: /data/NLCD_Texas.tif
+              value: /data/NLCD_Texas.tif
               #value: /data/NLCD_Harris.tif
-              value: /data/NLCD_east_texas.tif
+              #value: /data/NLCD_east_texas.tif
 
             # --- Output directory (PVC) ---
             - name: OUTPUT_DIR
