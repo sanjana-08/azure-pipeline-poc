@@ -185,6 +185,7 @@ def process_tile(window: Window, lulc_fp, gdf, weights, pop_field):
 # MAIN EXECUTION WITH DASK
 # -----------------------------
 if __name__ == "__main__":
+    start_local_time = time.time()
     print("=== DASYMETRIC POPULATION ALLOCATION ===")
     print(f"Census file: {census_fp}")
     print(f"LULC file: {lulc_fp}")
@@ -368,7 +369,7 @@ if __name__ == "__main__":
     }
     with open(os.path.join(output_dir, "stac_metadata.json"), "w") as f:
         json.dump(stac_metadata, f, indent=2)
-    print(f"   STAC metadata created in {time.time() - start_time:.2f} seconds")
+    print(f"   STAC metadata created in {time.time() - start_local_time:.2f} seconds")
 
     print("\n=== PROCESSING COMPLETE ===")
     print(f"Output files:")
