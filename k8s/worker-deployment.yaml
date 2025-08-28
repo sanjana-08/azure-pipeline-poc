@@ -176,7 +176,7 @@ spec:
         resources:
           requests:
             cpu: "1"
-            memory: "8Gi"
+            memory: "9Gi"
           limits:
             cpu: "6"
             memory: "14Gi"
