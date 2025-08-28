@@ -269,56 +269,80 @@ env:
   AUTH_TYPE: SERVICE_PRINCIPAL
 
 jobs:
-  # Detect what changed in this push/dispatch
   changes:
     runs-on: ubuntu-latest
     outputs:
-      image_changed: ${{ steps.filter.outputs.image }}
+      image_changed: ${{ steps.detect_image.outputs.image_changed }}
       k8s_changed:   ${{ steps.filter.outputs.k8s }}
+      base_sha:      ${{ steps.compute_base.outputs.base_sha }}
+      head_sha:      ${{ steps.compute_base.outputs.head_sha }}
     steps:
       - uses: actions/checkout@v4
         with:
-          # Full history -> reliable diffs on push/rebases and workflow_dispatch
           fetch-depth: 0
 
-      # Classify changed files (compare against EXACT pre-push SHA)
+      # Figure out the exact base and head SHAs to diff
+      - name: Compute base/head SHAs
+        id: compute_base
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "push" && -n "${{ github.event.before }}" ]]; then
+            BASE="${{ github.event.before }}"
+            HEAD="${{ github.sha }}"
+          else
+            # workflow_dispatch or fallback: diff against the remote main merge-base
+            git fetch origin main --quiet
+            BASE="$(git merge-base HEAD origin/main)"
+            HEAD="$(git rev-parse HEAD)"
+          fi
+          echo "base_sha=$BASE" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$HEAD"  >> "$GITHUB_OUTPUT"
+          echo "Diff base: $BASE"
+          echo "Diff head: $HEAD"
+
+      # Optional: keep using dorny to detect ONLY k8s manifest changes (not used for image)
       - uses: dorny/paths-filter@v3
         id: filter
         with:
-          base: ${{ github.event.before }}
-          list-files: shell  # helpful for debug step below
+          base: ${{ steps.compute_base.outputs.base_sha }}
+          list-files: shell
           filters: |
-            image:
-              - 'Dockerfile'
-              - 'Dockerfile.*'
-              - '.dockerignore'
-              - '**/*.py'
-              - 'requirements*.txt'
-              - 'pyproject.toml'
-              - 'poetry.lock'
-              - 'setup.cfg'
-              # explicitly exclude k8s/CI/docs/YAML so they don't trigger a rebuild
-              - '!k8s/**'
-              - '!.github/**'
-              - '!**/*.md'
-              - '!**/*.yaml'
-              - '!**/*.yml'
             k8s:
               - 'k8s/**/*.yaml'
               - 'k8s/**/*.yml'
 
-      # Debug which files tripped the filters
-      - name: Debug changed files
+      # Authoritative detector for "image changes"
+      - name: Detect Dockerfile / Python changes (authoritative)
+        id: detect_image
+        shell: bash
         run: |
-          echo "image_changed=${{ steps.filter.outputs.image }}"
+          set -euo pipefail
+          BASE="${{ steps.compute_base.outputs.base_sha }}"
+          HEAD="${{ steps.compute_base.outputs.head_sha }}"
+          # Only the files that should trigger a rebuild:
+          MAPFILE -t CHANGED < <(git diff --name-only "$BASE" "$HEAD" -- \
+            'Dockerfile' 'Dockerfile.*' '.dockerignore' \
+            '**/*.py' 'requirements*.txt' 'pyproject.toml' 'poetry.lock' 'setup.cfg')
+          if (( ${#CHANGED[@]} > 0 )); then
+            echo "image_changed=true"  >> "$GITHUB_OUTPUT"
+            printf 'Changed (image-related):\n%s\n' "${CHANGED[@]}"
+          else
+            echo "image_changed=false" >> "$GITHUB_OUTPUT"
+            echo "No image-related changes."
+          fi
+
+      # Debug (helpful)
+      - name: Debug summary
+        shell: bash
+        run: |
+          echo "image_changed=${{ steps.detect_image.outputs.image_changed }}"
           echo "k8s_changed=${{ steps.filter.outputs.k8s }}"
-          echo "--- image_files ---"
-          echo "${{ steps.filter.outputs.image_files }}"
           echo "--- k8s_files ---"
           echo "${{ steps.filter.outputs.k8s_files }}"
 
-  # Build only when "image" changed OR when manually forced
   buildImage:
+    # Gate on our authoritative detector OR manual force
     if: ${{ needs.changes.outputs.image_changed == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.force_build == 'true') }}
     needs: [changes]
     permissions:
@@ -348,7 +372,6 @@ jobs:
             -f ${{ env.DOCKER_FILE }} \
             ${{ env.BUILD_CONTEXT_PATH }}
 
-  # Deploy runs if either image OR k8s manifests changed
   deploy:
     if: ${{ needs.changes.outputs.image_changed == 'true' || needs.changes.outputs.k8s_changed == 'true' || (github.event_name == 'workflow_dispatch') }}
     needs: [changes, buildImage]
@@ -416,7 +439,6 @@ jobs:
             kubectl get namespace ${{ env.NAMESPACE }}
           fi
 
-      # If we rebuilt the image, update image in manifests (ensures rollout)
       - name: Deploy (with image update)
         if: ${{ needs.changes.outputs.image_changed == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.force_build == 'true') }}
         uses: Azure/k8s-deploy@v5
@@ -432,7 +454,6 @@ jobs:
           resource-type: ${{ env.CLUSTER_RESOURCE_TYPE }}
           annotate-namespace: ${{ env.CLUSTER_RESOURCE_TYPE != 'Microsoft.ContainerService/fleets' }}
 
-      # If only k8s changed, just apply manifests (no image substitution)
       - name: Deploy (manifests only)
         if: ${{ needs.changes.outputs.image_changed != 'true' && (needs.changes.outputs.k8s_changed == 'true' || github.event_name == 'workflow_dispatch') }}
         uses: Azure/k8s-deploy@v5
@@ -445,4 +466,5 @@ jobs:
           namespace: ${{ env.NAMESPACE }}
           resource-type: ${{ env.CLUSTER_RESOURCE_TYPE }}
           annotate-namespace: ${{ env.CLUSTER_RESOURCE_TYPE != 'Microsoft.ContainerService/fleets' }}
+
 
