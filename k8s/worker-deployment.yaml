@@ -89,7 +89,7 @@ kind: Deployment
 metadata:
   name: dask-worker
 spec:
-  replicas: 28
+  replicas: 36
   selector:
     matchLabels: { app: dask-worker }
   template:
@@ -175,8 +175,8 @@ spec:
             value: "0.95"
         resources:
           requests:
-            cpu: "3"
-            memory: "10Gi"
+            cpu: "1"
+            memory: "8Gi"
           limits:
             cpu: "6"
             memory: "14Gi"
