@@ -273,15 +273,11 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       image_changed: ${{ steps.detect_image.outputs.image_changed }}
-      k8s_changed:   ${{ steps.filter.outputs.k8s }}
-      base_sha:      ${{ steps.compute_base.outputs.base_sha }}
-      head_sha:      ${{ steps.compute_base.outputs.head_sha }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # Figure out the exact base and head SHAs to diff
       - name: Compute base/head SHAs
         id: compute_base
         shell: bash
@@ -291,29 +287,16 @@ jobs:
             BASE="${{ github.event.before }}"
             HEAD="${{ github.sha }}"
           else
-            # workflow_dispatch or fallback: diff against the remote main merge-base
             git fetch origin main --quiet
             BASE="$(git merge-base HEAD origin/main)"
             HEAD="$(git rev-parse HEAD)"
           fi
           echo "base_sha=$BASE" >> "$GITHUB_OUTPUT"
-          echo "head_sha=$HEAD"  >> "$GITHUB_OUTPUT"
+          echo "head_sha=$HEAD" >> "$GITHUB_OUTPUT"
           echo "Diff base: $BASE"
           echo "Diff head: $HEAD"
 
-      # Optional: keep using dorny to detect ONLY k8s manifest changes (not used for image)
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          base: ${{ steps.compute_base.outputs.base_sha }}
-          list-files: shell
-          filters: |
-            k8s:
-              - 'k8s/**/*.yaml'
-              - 'k8s/**/*.yml'
-
-      # Authoritative detector for "image changes"
-      - name: Detect Dockerfile / Python changes (authoritative)
+      - name: Detect Dockerfile/Python changes
         id: detect_image
         shell: bash
         run: |
@@ -321,7 +304,7 @@ jobs:
           BASE="${{ steps.compute_base.outputs.base_sha }}"
           HEAD="${{ steps.compute_base.outputs.head_sha }}"
 
-          # If no matching changes, --quiet exits 0; if there are, it exits 1.
+          # Exit code: 0 = no changes, 1 = there are changes
           if git diff --quiet "$BASE" "$HEAD" -- \
             Dockerfile Dockerfile.* .dockerignore \
             ':(glob)**/*.py' 'requirements*.txt' pyproject.toml poetry.lock setup.cfg
@@ -336,17 +319,8 @@ jobs:
               ':(glob)**/*.py' 'requirements*.txt' pyproject.toml poetry.lock setup.cfg
           fi
 
-      # Debug (helpful)
-      - name: Debug summary
-        shell: bash
-        run: |
-          echo "image_changed=${{ steps.detect_image.outputs.image_changed }}"
-          echo "k8s_changed=${{ steps.filter.outputs.k8s }}"
-          echo "--- k8s_files ---"
-          echo "${{ steps.filter.outputs.k8s_files }}"
-
   buildImage:
-    # Gate on our authoritative detector OR manual force
+    # Build only if image-related changes OR manual force
     if: ${{ needs.changes.outputs.image_changed == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.force_build == 'true') }}
     needs: [changes]
     permissions:
@@ -357,7 +331,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Azure login
-        uses: azure/login@v2.2.0
+        uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -377,7 +351,8 @@ jobs:
             ${{ env.BUILD_CONTEXT_PATH }}
 
   deploy:
-    if: ${{ needs.changes.outputs.image_changed == 'true' || needs.changes.outputs.k8s_changed == 'true' || (github.event_name == 'workflow_dispatch') }}
+    # 🚀 Always deploy on push/dispatch (regardless of image_changed)
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
     needs: [changes, buildImage]
     permissions:
       actions: read
@@ -388,7 +363,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Azure login
-        uses: azure/login@v2.2.0
+        uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -443,6 +418,7 @@ jobs:
             kubectl get namespace ${{ env.NAMESPACE }}
           fi
 
+      # If we built a new image (or forced), override images to trigger rollout
       - name: Deploy (with image update)
         if: ${{ needs.changes.outputs.image_changed == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.force_build == 'true') }}
         uses: Azure/k8s-deploy@v5
@@ -458,8 +434,9 @@ jobs:
           resource-type: ${{ env.CLUSTER_RESOURCE_TYPE }}
           annotate-namespace: ${{ env.CLUSTER_RESOURCE_TYPE != 'Microsoft.ContainerService/fleets' }}
 
+      # If we did NOT build, just apply manifests (no image substitution)
       - name: Deploy (manifests only)
-        if: ${{ needs.changes.outputs.image_changed != 'true' && (needs.changes.outputs.k8s_changed == 'true' || github.event_name == 'workflow_dispatch') }}
+        if: ${{ needs.changes.outputs.image_changed != 'true' && !(github.event_name == 'workflow_dispatch' && github.event.inputs.force_build == 'true') }}
         uses: Azure/k8s-deploy@v5
         with:
           action: deploy
@@ -470,5 +447,6 @@ jobs:
           namespace: ${{ env.NAMESPACE }}
           resource-type: ${{ env.CLUSTER_RESOURCE_TYPE }}
           annotate-namespace: ${{ env.CLUSTER_RESOURCE_TYPE != 'Microsoft.ContainerService/fleets' }}
+
 
 
