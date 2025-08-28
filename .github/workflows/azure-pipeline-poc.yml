@@ -353,7 +353,7 @@ jobs:
   deploy:
     # 🚀 Always deploy on push/dispatch (regardless of image_changed)
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
-    needs: [changes, buildImage]
+    needs: [changes]   # ← removed buildImage from dependencies so this never skips
     permissions:
       actions: read
       contents: read
@@ -447,6 +447,7 @@ jobs:
           namespace: ${{ env.NAMESPACE }}
           resource-type: ${{ env.CLUSTER_RESOURCE_TYPE }}
           annotate-namespace: ${{ env.CLUSTER_RESOURCE_TYPE != 'Microsoft.ContainerService/fleets' }}
+
 
 
 
