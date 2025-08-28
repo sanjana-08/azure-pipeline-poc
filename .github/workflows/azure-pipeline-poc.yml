@@ -30,12 +30,19 @@
 # For more samples to get started with GitHub Action workflows to deploy to Azure, refer to https://github.com/Azure/actions-workflow-samples
 # For more options with the actions used below please refer to https://github.com/Azure/login
 
+
+
 # name: azure-pipeline-poc
 
 # on:
 #   push:
 #     branches: [main]
 #   workflow_dispatch:
+#     inputs:
+#       force_build:
+#         type: boolean
+#         default: false
+#         description: "Force image build even if no code/Dockerfile changes"
 
 # env:
 #   ACR_RESOURCE_GROUP: Kubernetes-test
@@ -62,16 +69,51 @@
 #   AUTH_TYPE: SERVICE_PRINCIPAL
 
 # jobs:
+#   # Detect what changed in this push/dispatch
+#   changes:
+#     runs-on: ubuntu-latest
+#     outputs:
+#       image_changed: ${{ steps.filter.outputs.image }}
+#       k8s_changed:   ${{ steps.filter.outputs.k8s }}
+#     steps:
+#       - uses: actions/checkout@v3
+
+#       # Classify changed files
+#       - uses: dorny/paths-filter@v3
+#         id: filter
+#         with:
+#           # Tune these patterns to match where your app code lives.
+#           # Goal: "image" becomes true only when Dockerfile or application source changes.
+#           filters: |
+#             image:
+#               - 'Dockerfile'
+#               - 'Dockerfile.*'
+#               - '.dockerignore'
+#               - 'requirements.txt'
+#               - 'pyproject.toml'
+#               - 'poetry.lock'
+#               - 'setup.cfg'
+#               - 'src/**'
+#               - 'app/**'
+#               - '**/*.py'
+#               # explicitly exclude k8s and CI files so they don't trigger a rebuild
+#               - '!k8s/**'
+#               - '!.github/**'
+#               - '!**/*.md'
+#             k8s:
+#               - 'k8s/**'
+
+#   # Build only when "image" changed OR when manually forced
 #   buildImage:
+#     if: ${{ needs.changes.outputs.image_changed == 'true' || github.event_name == 'workflow_dispatch' && github.event.inputs.force_build == 'true' }}
+#     needs: [changes]
 #     permissions:
 #       contents: read
 #       id-token: write
 #     runs-on: ubuntu-latest
 #     steps:
-#       # Checks out the repository this file is in
 #       - uses: actions/checkout@v3
 
-#       # Logs in with your Azure credentials
 #       - name: Azure login
 #         uses: azure/login@v2.2.0
 #         with:
@@ -80,27 +122,30 @@
 #           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 #           auth-type: ${{ env.AUTH_TYPE }}
 
-#       # Logs into ACR
 #       - name: Log into ACR
-#         run: |
-#           az acr login -n ${{ env.AZURE_CONTAINER_REGISTRY }}
+#         run: az acr login -n ${{ env.AZURE_CONTAINER_REGISTRY }}
 
-#       # Builds and pushes an image up to your Azure Container Registry
 #       - name: Build and push image to ACR
 #         run: |
-#           az acr build --image ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.CONTAINER_NAME }}:latest --registry ${{ env.AZURE_CONTAINER_REGISTRY }} -g ${{ env.ACR_RESOURCE_GROUP }} -f ${{ env.DOCKER_FILE }} ${{ env.BUILD_CONTEXT_PATH }}
+#           az acr build \
+#             --image ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.CONTAINER_NAME }}:latest \
+#             --registry ${{ env.AZURE_CONTAINER_REGISTRY }} \
+#             -g ${{ env.ACR_RESOURCE_GROUP }} \
+#             -f ${{ env.DOCKER_FILE }} \
+#             ${{ env.BUILD_CONTEXT_PATH }}
+
+#   # Deploy runs if either image OR k8s manifests changed
 #   deploy:
+#     if: ${{ needs.changes.outputs.image_changed == 'true' || needs.changes.outputs.k8s_changed == 'true' || (github.event_name == 'workflow_dispatch') }}
+#     needs: [changes, buildImage]
 #     permissions:
 #       actions: read
 #       contents: read
 #       id-token: write
 #     runs-on: ubuntu-latest
-#     needs: [buildImage]
 #     steps:
-#       # Checks out the repository this file is in
 #       - uses: actions/checkout@v3
 
-#       # Logs in with your Azure credentials
 #       - name: Azure login
 #         uses: azure/login@v2.2.0
 #         with:
@@ -108,15 +153,14 @@
 #           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
 #           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 #           auth-type: ${{ env.AUTH_TYPE }}
+
 #       - run: az acr login -n ${{ env.AZURE_CONTAINER_REGISTRY }}
 
-#       # Use kubelogin to configure your kubeconfig for Azure auth
 #       - name: Set up kubelogin for non-interactive login
 #         uses: azure/use-kubelogin@v1
 #         with:
 #           kubelogin-version: 'v0.0.25'
 
-#       # Retrieves your Azure Kubernetes Service cluster's kubeconfig file
 #       - name: Get K8s context
 #         uses: azure/aks-set-context@v4
 #         with:
@@ -126,7 +170,6 @@
 #           use-kubelogin: 'true'
 #           resource-type: ${{ env.CLUSTER_RESOURCE_TYPE }}
 
-#       # Checks if the AKS cluster is private
 #       - name: Is private cluster
 #         if: ${{ env.CLUSTER_RESOURCE_TYPE != 'Microsoft.ContainerService/fleets' }}
 #         id: isPrivate
@@ -134,7 +177,6 @@
 #           result=$(az aks show --resource-group ${{ env.CLUSTER_RESOURCE_GROUP }} --name ${{ env.CLUSTER_NAME }} --query "apiServerAccessProfile.enablePrivateCluster")
 #           echo "PRIVATE_CLUSTER=$result" >> "$GITHUB_OUTPUT"
 
-#       # Create Namespace
 #       - name: Create Namespace
 #         if: ${{ env.ENABLENAMESPACECREATION == 'true' }}
 #         run: |
@@ -143,14 +185,11 @@
 #             result=$(az aks command result --resource-group ${{ env.CLUSTER_RESOURCE_GROUP }} --name ${{ env.CLUSTER_NAME }} --command-id $command_id)
 #             echo "Command Result: $result"
 #             exitCode=$(az aks command result --resource-group ${{ env.CLUSTER_RESOURCE_GROUP }} --name ${{ env.CLUSTER_NAME }} --command-id $command_id --query exitCode -o tsv)
-#             if [ $exitCode -ne 0 ]; then
-#               exit $exitCode
-#             fi
+#             if [ $exitCode -ne 0 ]; then exit $exitCode; fi
 #           else
 #             kubectl get namespace ${{ env.NAMESPACE }} || kubectl create namespace ${{ env.NAMESPACE }}
 #           fi
 
-#       # Validate Namespace exists
 #       - name: Validate Namespace Exists
 #         run: |
 #           if [ ${{ steps.isPrivate.outputs.PRIVATE_CLUSTER}} == 'true' ]; then
@@ -158,21 +197,34 @@
 #             result=$(az aks command result --resource-group ${{ env.CLUSTER_RESOURCE_GROUP }} --name ${{ env.CLUSTER_NAME }} --command-id $command_id)
 #             echo "Command Result: $result"
 #             exitCode=$(az aks command result --resource-group ${{ env.CLUSTER_RESOURCE_GROUP }} --name ${{ env.CLUSTER_NAME }} --command-id $command_id --query exitCode -o tsv)
-#             if [ $exitCode -ne 0 ]; then
-#               exit $exitCode
-#             fi
+#             if [ $exitCode -ne 0 ]; then exit $exitCode; fi
 #           else
 #             kubectl get namespace ${{ env.NAMESPACE }}
 #           fi
 
-#       # Deploys application based on given manifest  file
-#       - name: Deploys application
+#       # If we rebuilt the image, update image in manifests (ensures rollout)
+#       - name: Deploy (with image update)
+#         if: ${{ needs.changes.outputs.image_changed == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.force_build == 'true') }}
 #         uses: Azure/k8s-deploy@v5
 #         with:
 #           action: deploy
 #           manifests: ${{ env.DEPLOYMENT_MANIFEST_PATH }}
 #           images: |
 #             ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.CONTAINER_NAME }}:latest
+#           resource-group: ${{ env.CLUSTER_RESOURCE_GROUP }}
+#           name: ${{ env.CLUSTER_NAME }}
+#           private-cluster: ${{ steps.isPrivate.outputs.PRIVATE_CLUSTER == 'true' }}
+#           namespace: ${{ env.NAMESPACE }}
+#           resource-type: ${{ env.CLUSTER_RESOURCE_TYPE }}
+#           annotate-namespace: ${{ env.CLUSTER_RESOURCE_TYPE != 'Microsoft.ContainerService/fleets' }}
+
+#       # If only k8s changed, just apply manifests (no image substitution)
+#       - name: Deploy (manifests only)
+#         if: ${{ needs.changes.outputs.image_changed != 'true' && (needs.changes.outputs.k8s_changed == 'true' || github.event_name == 'workflow_dispatch') }}
+#         uses: Azure/k8s-deploy@v5
+#         with:
+#           action: deploy
+#           manifests: ${{ env.DEPLOYMENT_MANIFEST_PATH }}
 #           resource-group: ${{ env.CLUSTER_RESOURCE_GROUP }}
 #           name: ${{ env.CLUSTER_NAME }}
 #           private-cluster: ${{ steps.isPrivate.outputs.PRIVATE_CLUSTER == 'true' }}
@@ -224,43 +276,46 @@ jobs:
       image_changed: ${{ steps.filter.outputs.image }}
       k8s_changed:   ${{ steps.filter.outputs.k8s }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          # Needed for reliable diffs, especially on workflow_dispatch and merge commits
+          fetch-depth: 0
 
       # Classify changed files
       - uses: dorny/paths-filter@v3
         id: filter
         with:
-          # Tune these patterns to match where your app code lives.
-          # Goal: "image" becomes true only when Dockerfile or application source changes.
+          # Goal: "image" becomes true only when Dockerfile or Python/app deps changed
           filters: |
             image:
               - 'Dockerfile'
               - 'Dockerfile.*'
               - '.dockerignore'
-              - 'requirements.txt'
+              - '**/*.py'
+              - 'requirements*.txt'
               - 'pyproject.toml'
               - 'poetry.lock'
               - 'setup.cfg'
-              - 'src/**'
-              - 'app/**'
-              - '**/*.py'
-              # explicitly exclude k8s and CI files so they don't trigger a rebuild
+              # explicitly exclude k8s/CI/docs/YAML so they don't trigger a rebuild
               - '!k8s/**'
               - '!.github/**'
               - '!**/*.md'
+              - '!**/*.yaml'
+              - '!**/*.yml'
             k8s:
-              - 'k8s/**'
+              - 'k8s/**/*.yaml'
+              - 'k8s/**/*.yml'
 
   # Build only when "image" changed OR when manually forced
   buildImage:
-    if: ${{ needs.changes.outputs.image_changed == 'true' || github.event_name == 'workflow_dispatch' && github.event.inputs.force_build == 'true' }}
+    if: ${{ needs.changes.outputs.image_changed == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.force_build == 'true') }}
     needs: [changes]
     permissions:
       contents: read
       id-token: write
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Azure login
         uses: azure/login@v2.2.0
@@ -292,7 +347,7 @@ jobs:
       id-token: write
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Azure login
         uses: azure/login@v2.2.0
@@ -379,4 +434,3 @@ jobs:
           namespace: ${{ env.NAMESPACE }}
           resource-type: ${{ env.CLUSTER_RESOURCE_TYPE }}
           annotate-namespace: ${{ env.CLUSTER_RESOURCE_TYPE != 'Microsoft.ContainerService/fleets' }}
-
