@@ -372,7 +372,7 @@ if __name__ == "__main__":
     print(f"   STAC metadata created in {time.time() - start_local_time:.2f} seconds")
 
     print("\n=== PROCESSING COMPLETE ===")
-    print(f"Output files:")
+    print(f"Output filess:")
     print(f"  - {output_file}")
     print(f"  - {os.path.join(output_dir, 'stac_metadata.json')}")
 
