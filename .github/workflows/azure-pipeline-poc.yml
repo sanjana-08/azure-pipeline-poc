@@ -278,14 +278,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # Needed for reliable diffs, especially on workflow_dispatch and merge commits
+          # Full history -> reliable diffs on push/rebases and workflow_dispatch
           fetch-depth: 0
 
-      # Classify changed files
+      # Classify changed files (compare against EXACT pre-push SHA)
       - uses: dorny/paths-filter@v3
         id: filter
         with:
-          # Goal: "image" becomes true only when Dockerfile or Python/app deps changed
+          base: ${{ github.event.before }}
+          list-files: shell  # helpful for debug step below
           filters: |
             image:
               - 'Dockerfile'
@@ -305,6 +306,16 @@ jobs:
             k8s:
               - 'k8s/**/*.yaml'
               - 'k8s/**/*.yml'
+
+      # Debug which files tripped the filters
+      - name: Debug changed files
+        run: |
+          echo "image_changed=${{ steps.filter.outputs.image }}"
+          echo "k8s_changed=${{ steps.filter.outputs.k8s }}"
+          echo "--- image_files ---"
+          echo "${{ steps.filter.outputs.image_files }}"
+          echo "--- k8s_files ---"
+          echo "${{ steps.filter.outputs.k8s_files }}"
 
   # Build only when "image" changed OR when manually forced
   buildImage:
@@ -434,3 +445,4 @@ jobs:
           namespace: ${{ env.NAMESPACE }}
           resource-type: ${{ env.CLUSTER_RESOURCE_TYPE }}
           annotate-namespace: ${{ env.CLUSTER_RESOURCE_TYPE != 'Microsoft.ContainerService/fleets' }}
+
