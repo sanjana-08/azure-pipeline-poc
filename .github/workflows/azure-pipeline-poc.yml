@@ -304,7 +304,6 @@ jobs:
           BASE="${{ steps.compute_base.outputs.base_sha }}"
           HEAD="${{ steps.compute_base.outputs.head_sha }}"
 
-          # Exit code: 0 = no changes, 1 = there are changes
           if git diff --quiet "$BASE" "$HEAD" -- \
             Dockerfile Dockerfile.* .dockerignore \
             ':(glob)**/*.py' 'requirements*.txt' pyproject.toml poetry.lock setup.cfg
@@ -327,6 +326,8 @@ jobs:
       contents: read
       id-token: write
     runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tag }}   # <-- expose tag for deploy
     steps:
       - uses: actions/checkout@v4
 
@@ -341,24 +342,33 @@ jobs:
       - name: Log into ACR
         run: az acr login -n ${{ env.AZURE_CONTAINER_REGISTRY }}
 
-      - name: Build and push image to ACR
+      - name: Compute image tag
+        id: meta
+        shell: bash
+        run: |
+          TAG="$(echo "${GITHUB_SHA}" | cut -c1-7)"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Using image tag: $TAG"
+
+      - name: Build and push image to ACR (SHA + latest)
         run: |
           az acr build \
+            --image ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.CONTAINER_NAME }}:${{ steps.meta.outputs.tag }} \
             --image ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.CONTAINER_NAME }}:latest \
             --registry ${{ env.AZURE_CONTAINER_REGISTRY }} \
             -g ${{ env.ACR_RESOURCE_GROUP }} \
             -f ${{ env.DOCKER_FILE }} \
             ${{ env.BUILD_CONTEXT_PATH }}
 
-  deploy:
-    # 🚀 Always deploy on push/dispatch (regardless of image_changed)
-    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
-    needs: [changes]   # ← removed buildImage from dependencies so this never skips
+  # Deploy WITH image override — runs only when we built (or forced), and waits for buildImage
+  deploy_with_image:
+    if: ${{ needs.changes.outputs.image_changed == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.force_build == 'true') }}
+    needs: [changes, buildImage]
+    runs-on: ubuntu-latest
     permissions:
       actions: read
       contents: read
       id-token: write
-    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -393,40 +403,13 @@ jobs:
           result=$(az aks show --resource-group ${{ env.CLUSTER_RESOURCE_GROUP }} --name ${{ env.CLUSTER_NAME }} --query "apiServerAccessProfile.enablePrivateCluster")
           echo "PRIVATE_CLUSTER=$result" >> "$GITHUB_OUTPUT"
 
-      - name: Create Namespace
-        if: ${{ env.ENABLENAMESPACECREATION == 'true' }}
-        run: |
-          if [ ${{ steps.isPrivate.outputs.PRIVATE_CLUSTER}} == 'true' ]; then
-            command_id=$(az aks command invoke --resource-group ${{ env.CLUSTER_RESOURCE_GROUP }} --name ${{ env.CLUSTER_NAME }} --command "kubectl get namespace ${{ env.NAMESPACE }} || kubectl create namespace ${{ env.NAMESPACE }}" --query id -o tsv)
-            result=$(az aks command result --resource-group ${{ env.CLUSTER_RESOURCE_GROUP }} --name ${{ env.CLUSTER_NAME }} --command-id $command_id)
-            echo "Command Result: $result"
-            exitCode=$(az aks command result --resource-group ${{ env.CLUSTER_RESOURCE_GROUP }} --name ${{ env.CLUSTER_NAME }} --command-id $command_id --query exitCode -o tsv)
-            if [ $exitCode -ne 0 ]; then exit $exitCode; fi
-          else
-            kubectl get namespace ${{ env.NAMESPACE }} || kubectl create namespace ${{ env.NAMESPACE }}
-          fi
-
-      - name: Validate Namespace Exists
-        run: |
-          if [ ${{ steps.isPrivate.outputs.PRIVATE_CLUSTER}} == 'true' ]; then
-            command_id=$(az aks command invoke --resource-group ${{ env.CLUSTER_RESOURCE_GROUP }} --name ${{ env.CLUSTER_NAME }} --command "kubectl get namespace ${{ env.NAMESPACE }}" --query id -o tsv)
-            result=$(az aks command result --resource-group ${{ env.CLUSTER_RESOURCE_GROUP }} --name ${{ env.CLUSTER_NAME }} --command-id $command_id)
-            echo "Command Result: $result"
-            exitCode=$(az aks command result --resource-group ${{ env.CLUSTER_RESOURCE_GROUP }} --name ${{ env.CLUSTER_NAME }} --command-id $command_id --query exitCode -o tsv)
-            if [ $exitCode -ne 0 ]; then exit $exitCode; fi
-          else
-            kubectl get namespace ${{ env.NAMESPACE }}
-          fi
-
-      # If we built a new image (or forced), override images to trigger rollout
-      - name: Deploy (with image update)
-        if: ${{ needs.changes.outputs.image_changed == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.force_build == 'true') }}
+      - name: Deploy (pin to built tag)
         uses: Azure/k8s-deploy@v5
         with:
           action: deploy
           manifests: ${{ env.DEPLOYMENT_MANIFEST_PATH }}
           images: |
-            ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.CONTAINER_NAME }}:latest
+            ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.CONTAINER_NAME }}:${{ needs.buildImage.outputs.image_tag }}
           resource-group: ${{ env.CLUSTER_RESOURCE_GROUP }}
           name: ${{ env.CLUSTER_NAME }}
           private-cluster: ${{ steps.isPrivate.outputs.PRIVATE_CLUSTER == 'true' }}
@@ -434,9 +417,50 @@ jobs:
           resource-type: ${{ env.CLUSTER_RESOURCE_TYPE }}
           annotate-namespace: ${{ env.CLUSTER_RESOURCE_TYPE != 'Microsoft.ContainerService/fleets' }}
 
-      # If we did NOT build, just apply manifests (no image substitution)
+  # Deploy manifests ONLY — runs when no build happened; always deploys on push
+  deploy_manifests_only:
+    if: ${{ needs.changes.outputs.image_changed != 'true' && !(github.event_name == 'workflow_dispatch' && github.event.inputs.force_build == 'true') && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    needs: [changes]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          auth-type: ${{ env.AUTH_TYPE }}
+
+      - run: az acr login -n ${{ env.AZURE_CONTAINER_REGISTRY }}
+
+      - name: Set up kubelogin for non-interactive login
+        uses: azure/use-kubelogin@v1
+        with:
+          kubelogin-version: 'v0.0.25'
+
+      - name: Get K8s context
+        uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ env.CLUSTER_RESOURCE_GROUP }}
+          cluster-name: ${{ env.CLUSTER_NAME }}
+          admin: 'false'
+          use-kubelogin: 'true'
+          resource-type: ${{ env.CLUSTER_RESOURCE_TYPE }}
+
+      - name: Is private cluster
+        if: ${{ env.CLUSTER_RESOURCE_TYPE != 'Microsoft.ContainerService/fleets' }}
+        id: isPrivate
+        run: |
+          result=$(az aks show --resource-group ${{ env.CLUSTER_RESOURCE_GROUP }} --name ${{ env.CLUSTER_NAME }} --query "apiServerAccessProfile.enablePrivateCluster")
+          echo "PRIVATE_CLUSTER=$result" >> "$GITHUB_OUTPUT"
+
       - name: Deploy (manifests only)
-        if: ${{ needs.changes.outputs.image_changed != 'true' && !(github.event_name == 'workflow_dispatch' && github.event.inputs.force_build == 'true') }}
         uses: Azure/k8s-deploy@v5
         with:
           action: deploy
@@ -447,6 +471,7 @@ jobs:
           namespace: ${{ env.NAMESPACE }}
           resource-type: ${{ env.CLUSTER_RESOURCE_TYPE }}
           annotate-namespace: ${{ env.CLUSTER_RESOURCE_TYPE != 'Microsoft.ContainerService/fleets' }}
+
 
 
 
